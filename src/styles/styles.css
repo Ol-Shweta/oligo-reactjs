@@ -259,3 +259,73 @@ button.predict-btn {
 button.predict-btn:hover {
   background-color: #218838;
 }
+.prediction-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.prediction-table th, .prediction-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.prediction-table th {
+  background-color: #f2f2f2;
+  text-align: center;
+}
+
+.prediction-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.prediction-table .danger {
+  background-color: #f8d7da;
+}
+
+.prediction-table .safe {
+  background-color: #d4edda;
+}
+
+.prediction-table td {
+  text-align: center;
+}
+.prediction-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.prediction-table th, .prediction-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.prediction-table th {
+  background-color: #f2f2f2;
+  text-align: center;
+}
+
+.prediction-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.prediction-table .danger {
+  background-color: #f8d7da;
+}
+
+.prediction-table .safe {
+  background-color: #d4edda;
+}
+
+.prediction-table td {
+  text-align: center;
+}
+
+.chart-container {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 20px;
+}
+
+.chart-container canvas {
+  max-width: 45%;
+}

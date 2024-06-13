@@ -8,7 +8,7 @@ import Policies from "../pages/policies";
 import Reports from "../pages/reports";
 import Dashboard from "../pages/dashboard";
 import Contact from "../pages/contact";
-import PredictiveAnalytics from "../pages/predictiveAnalytics";
+import PredictiveAnalytics from "../pages/predictiveanalytics";
 
 /**
 * The router is imported in app.jsx
@@ -26,6 +26,6 @@ export default () => (
       <Route path="/reports" component={Reports} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/contact" component={Contact} />
-      <Route path="/predictiveanalytics" component={PredictiveAnalytics} />
+      <Route path="/predictiveanalytics" component={Predictiveanalytics} />
     </Switch>
 );
