@@ -1,4 +1,6 @@
 import * as React from "react";
+import { useWiggle } from "../hooks/wiggle";
+import { animated } from "react-spring";
 /* ADD IMPORTS FROM TODO ON THE NEXT LINE */
 
 
@@ -9,63 +11,43 @@ import * as React from "react";
 
 export default function About() {
   /* DECLARE STYLE AND TRIGGER FOR WIGGLE EFFECT FROM TODO ON NEXT LINE */
-  
+  const [style, trigger] = useWiggle({ x: 50, rotation: 1, scale: 1.2 });
+
   return (
     <div className="page">
       {/* REPLACE H1 ELEMENT BELOW WITH CODE FROM TODO */}
-      <h1 className="title">
-        About this site
-      </h1>
+      <animated.h1 className="title" style={style}>
+        About OligoQHSE
+        </animated.h1>
       {/* REPLACE OPENING P TAG BELOW WITH CODE FROM TODO */}
-      <p>
-        Welcome to the Glitch React starter, where you can instantly create a
-        React site that's fully customizable.
-      </p>
+      <p onMouseEnter={trigger}>Reduce operational risks related to occupational safety and environmental impact.</p>
       <p>
         <em>
-          If you're completely new to React, learning the{" "}
-          <a href="https://reactjs.org/docs/hello-world.html">main concepts</a>{" "}
-          will get you off to a great start. You'll also see comments and links
-          to supporting resources throughout the code.
+        OligoQHSE software application provides a platform to record, track and respond to quality and safety incidents 
+        and makes a major contribution in reducing operational risks related to occupational safety and environmental impact.
         </em>
       </p>
       <p>
-        This page is a great spot to tell the world a few details about the new
-        React app you built on Glitch! Check out your project's{" "}
-        <code>readme</code> file to learn more about how to customize your
-        content.
+      This platform manages all QHSE non conformance, incidents, risk, risk analysis, audits, assessments, 
+      root cause analysis and improvement suggestions.
       </p>
       <ul>
         <li>
-          🎉 Right now, your site is <strong>live on the web</strong> 🌐 with a
-          real URL (a secure HTTPS address!) that updates as soon as you make
-          changes.
+        OligoQHSE can support operators in multiple industries including Oil and Gas, Aerospace, 
+        Marine, Mining, Construction, Power, Transportation and Tourism.
         </li>
         <li>
-          💥 <strong>Add a domain</strong> to your new Glitch project! Just go
-          to the <strong>Tools</strong> menu in the Glitch editor, and click{" "}
-          <strong>Custom Domains</strong>.
+        By improving the efficiency and effectiveness of the incident management processes, 
+        it can immensely contribute to performance improvement, cost reduction and also to minimize environmental footprint.
         </li>
         <li>
-          🌈 Use the <strong>Share</strong> button in the Glitch editor to
-          invite others in to edit your new React project by typing in their
-          email address or Glitch username. <br /> <strong>Tip:</strong> 👀Make
-          your code, or even your entire app, private to just those you invite,
-          by{" "}
-          <a href="https://glitch.com/pricing">upgrading your Glitch account</a>
-          .
+        OligoQHSE is built on a framework in compliance with ISO 45001, ISO 14001, ISO 9001 standards.
         </li>
       </ul>
 
       <p>
-        {" "}
-        The Glitch community is glad to welcome you, and the Internet is better
-        when it's made by real people. We can't wait to see what you create!
-      </p>
-      <p>
-        Built with <a href="https://reactjs.org/">React</a> and{" "}
-        <a href="https://vitejs.dev/">Vite</a> on{" "}
-        <a href="https://glitch.com/">Glitch</a>.
+      OligoQHSE software system is capable of positive disruption in HSE by incorporating 
+      Artificial Intelligence (AI), Machine Learning (ML) and BigData innovations.
       </p>
     </div>
   );

@@ -65,7 +65,8 @@ to this section's matching END comment to see page-specific styles.
 }
 
 /* Navigation grid */
-.footer {
+.footer,
+.header {
   display: flex;
   justify-content: space-between;
   margin: 1rem auto 0;
@@ -76,7 +77,9 @@ to this section's matching END comment to see page-specific styles.
 }
 
 .footer a:not(.btn--remix):link,
-a:not(.btn--remix):visited {
+.footer a:not(.btn--remix):visited,
+.header a:not(.btn--remix):link,
+.header a:not(.btn--remix):visited {
   font-family: HK Grotesk;
   font-style: normal;
   font-weight: normal;
@@ -85,11 +88,13 @@ a:not(.btn--remix):visited {
   text-decoration: none;
   border-style: none;
 }
-.footer a:hover {
+.footer a:hover,
+.header a:hover {
   background: var(--color-primary);
 }
 
-.footer .links {
+.footer .links,
+.header .links {
   padding: 0.5rem 1rem 1.5rem;
   white-space: nowrap;
 }
@@ -97,6 +102,7 @@ a:not(.btn--remix):visited {
 .divider {
   padding: 0 1rem;
 }
+
 /******************************************************************************
 END Glitch hello-app default styles
 ******************************************************************************/
@@ -105,14 +111,17 @@ END Glitch hello-app default styles
 body {
   font-family: HK Grotesk;
   background-color: var(--color-bg);
+  margin: 0;
+  padding: 0;
 }
+
 .wrapper {
-  min-height: var(--wrapper-height);
   display: grid;
   place-items: center;
   margin: 0 1rem;
-  min-height: 86vh;
+  min-height: var(--wrapper-height);
 }
+
 .content {
   display: flex;
   flex-direction: column;
@@ -126,11 +135,11 @@ h1 {
   font-family: HK Grotesk;
   font-style: normal;
   font-weight: bold;
-  font-size: 100px;
-  line-height: 105%;
+  font-size: 2.5rem;
+  line-height: 1.2;
 }
 .page h1 {
-  font-size: 48px;
+  font-size: 2rem;
 }
 
 .page p {
@@ -166,10 +175,87 @@ h1 {
 /* Instructions */
 .instructions {
   margin: 1rem auto 0;
+  text-align: left;
 }
 .instructions p {
   font-size: 1rem;
+  text-align: left;
 }
 h2 {
   color: #2800FF;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .illustration {
+    padding-left: 1rem;
+    max-width: 80%;
+  }
+  h1 {
+    font-size: 2rem;
+  }
+  .page h1 {
+    font-size: 1.5rem;
+  }
+  .instructions {
+    margin: 0.5rem;
+  }
+  .footer, .header {
+    flex-direction: column;
+    align-items: center;
+  }
+  .btn--remix {
+    width: 100%;
+    text-align: center;
+    margin: 0.5rem 0;
+  }
+}
+/* Global button styles */
+button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fff;
+  background-color: #007bff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+/* Specific styles for file input */
+input[type="file"] {
+  padding: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Additional styles for prediction section */
+.predict-section {
+  margin-top: 2rem;
+}
+
+.predict-section input {
+  margin-right: 1rem;
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+button.predict-btn {
+  background-color: #28a745;
+}
+
+button.predict-btn:hover {
+  background-color: #218838;
 }

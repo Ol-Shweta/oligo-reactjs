@@ -5,11 +5,11 @@ import { Link } from "wouter";
 
 // Our language strings for the header
 const strings = [
-  "Hello React",
-  "Salut React",
-  "Hola React",
-  "안녕 React",
-  "Hej React"
+  "Hello OligoQHSE",
+  "Salut OligoQHSE",
+  "Hola OligoQHSE",
+  "안녕 OligoQHSE",
+  "Hej OligoQHSE"
 ];
 
 // Utility function to choose a random value from the language array
@@ -65,12 +65,14 @@ export default function Home() {
         </animated.div>
       </div>
       <div className="instructions">
-        <h2>Using this project</h2>
+        <h2>Using this wepapp</h2>
         <p>
-          This is the Glitch <strong>Hello React</strong> project. You can use
-          it to build your own app. See more info in the{" "}
-          <Link href="/about">About</Link> page, and check out README.md in the
-          editor for additional detail plus next steps you can take!
+        Reduce operational risks related to occupational safety and environmental impact. OligoQHSE software application 
+        provides a platform to record, track and respond to quality and safety incidents and makes a major contribution 
+        in reducing operational risks related to occupational safety and environmental impact. This platform manages all 
+        QHSE non conformance, incidents, risk, risk analysis, audits, assessments, root cause analysis and improvement 
+        suggestions.
+     
         </p>
       </div>
     </>
