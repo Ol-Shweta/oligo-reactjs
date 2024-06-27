@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as XLSX from 'xlsx';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
 
+// Register necessary components
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
+
 const PredictiveAnalytics = () => {
-  const [trainFile, setTrainFile] = useState(null);
   const [predictFile, setPredictFile] = useState(null);
   const [model, setModel] = useState(null);
   const [predictions, setPredictions] = useState([]);
@@ -75,53 +78,29 @@ const PredictiveAnalytics = () => {
     return encoded;
   };
 
-  const trainModel = (data) => {
-    const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape: [TOTAL_FEATURES] }));
-    model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-    model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
-
-    model.compile({ optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy'] });
-
-    const xs = tf.tensor2d(data.observations);
-    const ys = tf.tensor2d(data.labels, [data.labels.length, 1]);
-
-    model.fit(xs, ys, { epochs: 10 }).then(() => {
-      setModel(model);
-      alert('Model training complete');
-    });
-  };
-
-  const handleTrainFileChange = (event) => {
-    setTrainFile(event.target.files[0]);
-  };
-
-  const handleTrainModel = () => {
-    if (trainFile) {
-      loadAndPreprocessData(trainFile, trainModel);
-    } else {
-      alert('Please choose a training file first!');
-    }
-  };
-
   const handlePredictFileChange = (event) => {
     setPredictFile(event.target.files[0]);
   };
 
   const handlePredict = () => {
-    if (predictFile && model) {
-      loadAndPreprocessData(predictFile, (data) => {
-        const xs = tf.tensor2d(data.observations);
-        const predictionData = model.predict(xs).dataSync();
-        const predictionWithConfidence = Array.from(predictionData).map(pred => ({
-          prediction: pred > 0.5 ? 'Yes' : 'No',
-          confidence: pred
-        }));
-        setPredictions(predictionWithConfidence);
-        updateChart(predictionWithConfidence, data.observations);
-      }, false);
+    if (predictFile) {
+      tf.loadLayersModel('indexeddb://safety-observations-model').then((loadedModel) => {
+        setModel(loadedModel);
+        loadAndPreprocessData(predictFile, (data) => {
+          const xs = tf.tensor2d(data.observations);
+          const predictionData = loadedModel.predict(xs).dataSync();
+          const predictionWithConfidence = Array.from(predictionData).map(pred => ({
+            prediction: pred > 0.5 ? 'Yes' : 'No',
+            confidence: pred
+          }));
+          setPredictions(predictionWithConfidence);
+          updateChart(predictionWithConfidence, data.observations);
+        }, false);
+      }).catch(() => {
+        alert('Model not found. Please train the model first.');
+      });
     } else {
-      alert('Please choose a prediction file and ensure the model is trained!');
+      alert('Please choose a prediction file!');
     }
   };
 
@@ -148,52 +127,18 @@ const PredictiveAnalytics = () => {
   };
 
   return (
-    <div>
-      <h2>Predictive Analytics</h2>
-
-      <div>
-        <h3>Train Model</h3>
-        <input type="file" accept=".xlsx" onChange={handleTrainFileChange} />
-        <button onClick={handleTrainModel}>Train Model</button>
-      </div>
-
-      <div>
-        <h3>Predict Future Accidents</h3>
+    <div className="container">
+      <h1>Predictive Analytics</h1>
+      <div className="file-upload">
         <input type="file" accept=".xlsx" onChange={handlePredictFileChange} />
         <button onClick={handlePredict}>Predict</button>
+      </div>
+      <div className="chart-container">
         {predictions.length > 0 && (
           <div>
-            <h4>Predictions:</h4>
-            <table className="prediction-table">
-              <thead>
-                <tr>
-                  <th>S. No</th>
-                  <th>Date</th>
-                  <th>Location</th>
-                  <th>Observation</th>
-                  <th>Category</th>
-                  <th>Prediction</th>
-                  <th>Confidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {predictions.map((pred, index) => (
-                  <tr key={index} className={pred.prediction === 'Yes' ? 'danger' : 'safe'}>
-                    <td>{predictionData[index]['S. No']}</td>
-                    <td>{predictionData[index]['Date']}</td>
-                    <td>{predictionData[index]['Location']}</td>
-                    <td>{predictionData[index]['Safety Observation / Condition / Activity']}</td>
-                    <td>{predictionData[index]['Category']}</td>
-                    <td>{pred.prediction}</td>
-                    <td>{(pred.confidence * 100).toFixed(2)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div>
-              <Bar data={chartData} />
-              <Pie data={chartData} />
-            </div>
+            <h2>Predictions</h2>
+            <Bar data={chartData} options={{ responsive: true }} />
+            <Pie data={chartData} options={{ responsive: true }} />
           </div>
         )}
       </div>

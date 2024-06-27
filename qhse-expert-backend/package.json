@@ -1,0 +1,19 @@
+{
+  "name": "qhse-expert-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tensorflow-models/universal-sentence-encoder": "^1.3.3",
+    "@tensorflow/tfjs": "^4.20.0",
+    "body-parser": "^1.20.2",
+    "express": "^4.19.2"
+  },
+  "description": ""
+}

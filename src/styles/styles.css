@@ -8,9 +8,9 @@ to this section's matching END comment to see page-specific styles.
 ******************************************************************************/
 /* Our default values set as CSS variables */
 :root {
-  --color-bg: #FFFFA0;
+  --color-bg: #f8f9fa; /* Updated to light gray */
   --color-text-main: #000000;
-  --color-primary: #AFECE0;
+  --color-primary: #007bff;
   --wrapper-height: 85vh;
   --image-max-width: 320px;
   --font-family: "HK Grotesk";
@@ -210,6 +210,7 @@ h2 {
     margin: 0.5rem 0;
   }
 }
+
 /* Global button styles */
 button {
   padding: 0.75rem 1.5rem;
@@ -226,6 +227,22 @@ button {
 
 button:hover {
   background-color: #0056b3;
+}
+
+button.train-btn {
+  background-color: #17a2b8;
+}
+
+button.train-btn:hover {
+  background-color: #138496;
+}
+
+button.predict-btn {
+  background-color: #28a745;
+}
+
+button.predict-btn:hover {
+  background-color: #218838;
 }
 
 /* Specific styles for file input */
@@ -252,43 +269,6 @@ input[type="file"] {
   margin-bottom: 1rem;
 }
 
-button.predict-btn {
-  background-color: #28a745;
-}
-
-button.predict-btn:hover {
-  background-color: #218838;
-}
-.prediction-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.prediction-table th, .prediction-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-.prediction-table th {
-  background-color: #f2f2f2;
-  text-align: center;
-}
-
-.prediction-table tr:hover {
-  background-color: #f1f1f1;
-}
-
-.prediction-table .danger {
-  background-color: #f8d7da;
-}
-
-.prediction-table .safe {
-  background-color: #d4edda;
-}
-
-.prediction-table td {
-  text-align: center;
-}
 .prediction-table {
   width: 100%;
   border-collapse: collapse;
@@ -324,8 +304,98 @@ button.predict-btn:hover {
   display: flex;
   justify-content: space-around;
   margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 .chart-container canvas {
-  max-width: 45%;
+  width: 100%;
+  max-width: 600px; /* Increased max-width for better visibility */
+  height: auto;
+  margin: 10px;
+}
+
+.container {
+  margin: 20px;
+}
+
+.nav {
+  display: flex;
+  justify-content: space-around;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.nav a {
+  color: #007bff;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+}
+
+.nav a:hover {
+  text-decoration: underline;
+}
+
+/* Chat Page Specific Styles */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 70vh;
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  border-bottom: 1px solid #ccc;
+}
+
+.chat-message {
+  margin-bottom: 20px;
+}
+
+.chat-message.user {
+  text-align: right;
+}
+
+.chat-message.bot {
+  text-align: left;
+}
+
+.chat-input-container {
+  display: flex;
+  padding: 10px;
+  background-color: #f1f1f1;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.chat-submit {
+  margin-left: 10px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fff;
+  background-color: #007bff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.chat-submit:hover {
+  background-color: #0056b3;
 }
