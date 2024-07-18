@@ -338,23 +338,26 @@ input[type="file"] {
 
 /* Chat Page Specific Styles */
 .chat-container {
-  display: flex;
-  flex-direction: column;
-  height: 70vh;
-  width: 100%;
-  max-width: 800px;
-  margin: 20px auto;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background-color: #fff;
-  overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 80vh; /* Increased height for better visibility */
+    width: 100%;
+    min-width: 900px; /* Increased max-width for better visibility */
+    margin: 20px auto;
+    border: 1px solid #ccc;
+    border-radius: 16px; /* Added more rounded corners */
+    background-color: #fff;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Added subtle shadow for depth */
+
 }
 
 .chat-messages {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  border-bottom: 1px solid #ccc;
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    border-bottom: 1px solid #ccc;
+    word-wrap: break-word;
 }
 
 .chat-message {
@@ -370,32 +373,143 @@ input[type="file"] {
 }
 
 .chat-input-container {
-  display: flex;
-  padding: 10px;
-  background-color: #f1f1f1;
+    display: flex;
+    padding: 15px; /* Increased padding for better touch target */
+    background-color: #f1f1f1;
+    border-top: 1px solid #ccc; /* Added border to separate messages and input */
+    border-radius: 0 0 16px 16px; /* Rounded bottom corners */
 }
 
 .chat-input {
   flex: 1;
-  padding: 10px;
+  padding: 12px; /* Increased padding for larger input area */
   font-size: 1rem;
   border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: 20px; /* Rounded input field */
+  outline: none; /* Remove default outline */
 }
 
 .chat-submit {
-  margin-left: 10px;
-  padding: 10px 20px;
-  font-size: 1rem;
-  font-weight: bold;
-  color: #fff;
-  background-color: #007bff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
+    flex: 1; /* Adjust flex value for submit button */
+    margin-left: 10px;
+    margin-left: 10px;
+    padding: 10px 24px;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    align-self: flex-start;
 }
 
 .chat-submit:hover {
   background-color: #0056b3;
+}
+
+.chat-form {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+}
+
+.chat-form input[type="text"] {
+        flex: 1;
+        padding: 12px 20px;
+        margin: 8px 0;
+        border: 1px solid #ccc;
+        border-radius: 20px;
+        box-sizing: border-box;
+        font-size: 1rem;
+}
+
+.chat-form button {
+        padding: 12px 24px;
+        margin-left: 10px;
+        font-size: 1rem;
+        font-weight: bold;
+        color: #fff;
+        background-color: #007bff;
+        border: none;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+ }
+
+.chat-form button:hover {
+       background-color: #0056b3;
+}
+
+
+.loader {
+    font-size: 18px;
+    color: #138496;
+    text-align: center;
+    margin-top: 20px;
+}
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chat-container {
+        height: 70vh; /* Adjusted height for better visibility on smaller screens */
+        width: 95%;
+    }
+
+    .chat-input-container {
+        flex-direction: column;
+        padding: 10px; /* Adjusted padding for smaller screens */
+    }
+
+    .chat-submit {
+        margin-left: 0;
+        margin-top: 10px;
+        align-self: center; /* Center the submit button on smaller screens */
+    }
+
+    .chat-form {
+        flex-direction: column;
+    }
+
+    .chat-form input[type="text"] {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .chat-form button {
+       width: 100%;
+       margin: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .chat-container {
+        height: 60vh; /* Adjusted height for smaller screens */
+        width: 100%;
+    }
+
+    .chat-input {
+        padding: 10px; /* Adjusted padding for smaller screens */
+        font-size: 0.9rem;
+    }
+
+    .chat-submit {
+        padding: 10px 20px; /* Adjusted padding for smaller screens */
+        font-size: 0.9rem;
+    }
+
+    .chat-form {
+        flex-direction: column;
+    }
+
+    .chat-form input[type="text"] {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .chat-form button {
+        width: 100%;
+        margin: 0;
+    }
 }

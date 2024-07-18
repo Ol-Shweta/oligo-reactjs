@@ -4,3 +4,5 @@ web_modules
 .firebaserc
 .glitchdotcom.json
 build
+.vs/
+*.vsidx
