@@ -46,26 +46,17 @@ export default function Home() {
   };
   return (
     <>
-      <h1 className="title">{hello}!</h1>
-      {/* When the user hovers over the image we apply the wiggle style to it */}
-      <animated.div onMouseEnter={trigger} style={style}>
-        <img
-          src="https://cdn.glitch.com/2f80c958-3bc4-4f47-8e97-6a5c8684ac2c%2Fillustration.svg?v=1618196579405"
-          className="illustration"
-          onClick={handleChangeHello}
-          alt="Illustration click to change language"
-        />
-      </animated.div>
-      <div className="navigation">
-        {/* When the user hovers over this text, we apply the wiggle function to the image style */}
-        <animated.div onMouseEnter={trigger}>
-          <a className="btn--click-me" onClick={handleChangeHello}>
-            Psst, click me
-          </a>
-        </animated.div>
-      </div>
+          <section id="fh5co-services">
+              <div className="container">
+                  <div className="instructions">
+                      <h1>AI based OligoQHSE</h1>
+                         <h2>make your HSE easier</h2>
+                  </div>
+              </div></section>
+          <section id="fh5co-services">
+          <div className="container">
       <div className="instructions">
-        <h2>Using this wepapp</h2>
+         <h2>Reduce operational risks related to occupational safety and environmental impact.</h2>
         <p>
         Reduce operational risks related to occupational safety and environmental impact. OligoQHSE software application 
         provides a platform to record, track and respond to quality and safety incidents and makes a major contribution 
@@ -74,7 +65,8 @@ export default function Home() {
         suggestions.
      
         </p>
-      </div>
+                  </div>
+              </div></section>
     </>
   );
 }

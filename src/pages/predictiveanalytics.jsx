@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as XLSX from 'xlsx';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Bar, Pie } from 'react-chartjs-2';
+import { Pie } from 'react-chartjs-2';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -210,6 +210,10 @@ const PredictiveAnalytics = () => {
         }
     };
 
+    const toggleFeedbackSection = () => {
+        setShowFeedbackOptions(!showFeedbackOptions);
+    };
+
     return (
         <div className="container">
             <h1>Predictive Analytics</h1>
@@ -229,14 +233,22 @@ const PredictiveAnalytics = () => {
                     </div>
                     <div className="feedback-section">
                         <h3>Provide Feedback</h3>
-                        {predictions.map((pred, index) => (
-                            <div key={index}>
-                                <p>Prediction: {pred.prediction} | Confidence: {(pred.confidence * 100).toFixed(2)}%</p>
-                                <button onClick={() => handleFeedback(index, true)}>Correct</button>
-                                <button onClick={() => handleFeedback(index, false)}>Incorrect</button>
-                            </div>
-                        ))}
-                        <button onClick={handleRetrainModel}>Retrain Model</button>
+                        <button onClick={toggleFeedbackSection}>
+                            {showFeedbackOptions ? 'Hide Feedback' : 'Show Feedback'}
+                        </button>
+                        {showFeedbackOptions && (
+                            <>
+                                {predictions.map((pred, index) => (
+                                    <div key={index}>
+                                        <p>Observation: {predictionData[index] || 'N/A'}</p>
+                                        <p>Prediction: {pred.prediction} | Confidence: {(pred.confidence * 100).toFixed(2)}%</p>
+                                        <button onClick={() => handleFeedback(index, true)}>Correct</button>
+                                        <button onClick={() => handleFeedback(index, false)}>Incorrect</button>
+                                    </div>
+                                ))}
+                                <button onClick={handleRetrainModel}>Retrain Model</button>
+                            </>
+                        )}
                     </div>
                 </>
             )}

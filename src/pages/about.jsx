@@ -13,7 +13,9 @@ export default function About() {
   /* DECLARE STYLE AND TRIGGER FOR WIGGLE EFFECT FROM TODO ON NEXT LINE */
   const [style, trigger] = useWiggle({ x: 50, rotation: 1, scale: 1.2 });
 
-  return (
+    return (
+        <section id="fh5co-services">
+            <div className="container">
     <div className="page">
       {/* REPLACE H1 ELEMENT BELOW WITH CODE FROM TODO */}
       <animated.h1 className="title" style={style}>
@@ -48,7 +50,8 @@ export default function About() {
       <p>
       OligoQHSE software system is capable of positive disruption in HSE by incorporating 
       Artificial Intelligence (AI), Machine Learning (ML) and BigData innovations.
-      </p>
-    </div>
+                    </p>
+                </div></div>
+        </section>
   );
 }

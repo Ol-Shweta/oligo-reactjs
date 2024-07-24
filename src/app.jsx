@@ -9,7 +9,8 @@ export default function App() {
   return (
     <Router>
       <Seo />
-      <header className="header">
+          <header className="header">
+              <div className="container">
       <div className="links">
         <nav className="navigation">
           <Link href="/">Home</Link>
@@ -20,14 +21,15 @@ export default function App() {
           <span className="divider">|</span>
           <Link href="/chat">Chat</Link>
         </nav>
-        </div>
+                  </div></div>
       </header>
       <main role="main" className="wrapper">
         <div className="content">
           <PageRouter />
         </div>
       </main>
-      <footer className="footer">
+          <footer className="footer">
+              <div className="container">
         <div className="links">
           <Link href="/">Home</Link>
           <span className="divider">|</span>
@@ -40,7 +42,7 @@ export default function App() {
           <Link href="/reports">Reports</Link>
           <span className="divider">|</span>
           <Link href="/contact">Contact</Link>
-        </div>
+        </div></div>
       </footer>
     </Router>
   );
