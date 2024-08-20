@@ -18,7 +18,7 @@ const PredictiveAnalytics = () => {
     const [feedback, setFeedback] = useState([]);
     const [showFeedbackOptions, setShowFeedbackOptions] = useState(false);
 
-    const MAX_TEXT_LEN = 30;
+    const MAX_TEXT_LEN = 60;
 
     const loadAndPreprocessData = (file, callback, forTraining = true) => {
         const reader = new FileReader();
@@ -31,13 +31,16 @@ const PredictiveAnalytics = () => {
             const observations = jsonData.map(row => row['Safety Observation / Condition / Activity'] || '');
             const categories = jsonData.map(row => row['Category'] || '');
             const labels = forTraining ? jsonData.map(row => row['Unsafe Act / Unsafe Condition'] || '') : [];
+            const locations = jsonData.map(row => row['Location'] || ''); // Add location data
 
             const uniqueCategories = [...new Set(categories)];
+            const uniqueLocations = [...new Set(locations)]; // Unique locations for chart
+
             const processedData = preprocessData(observations, categories, labels, uniqueCategories);
             if (!forTraining) {
                 setPredictionData(observations); // Store the original observations
             }
-            callback(processedData);
+            callback(processedData, uniqueLocations);
         };
         reader.readAsArrayBuffer(file);
     };
@@ -47,12 +50,13 @@ const PredictiveAnalytics = () => {
         const encodedCategories = categories.map(cat => encodeCategory(cat, uniqueCategories));
         const encodedLabels = labels.length ? labels.map(label => (label === 'Unsafe Act' ? 1 : 0)) : [];
 
+        // Combine observations and categories
         const combinedData = encodedObservations.map((obs, index) => {
             const combined = [...obs, ...encodedCategories[index]];
-            if (combined.length > 35) {
-                return combined.slice(0, 35); // Ensure the combined length is 35
+            if (combined.length > 60) {
+                return combined.slice(0, 60); // Ensure the combined length is 60
             } else {
-                return combined.concat(Array(35 - combined.length).fill(0)); // Pad if necessary
+                return combined.concat(Array(60 - combined.length).fill(0)); // Pad if necessary
             }
         });
 
@@ -62,6 +66,7 @@ const PredictiveAnalytics = () => {
             uniqueCategories
         };
     };
+
 
     const encodeText = (text) => {
         const encoded = Array.from(text).map(char => char.charCodeAt(0));
@@ -84,66 +89,127 @@ const PredictiveAnalytics = () => {
     const handlePredict = async () => {
         if (predictFile) {
             try {
-                const loadedModel = await tf.loadLayersModel('indexeddb://safety-observations-model');
+                let loadedModel;
+                try {
+                    loadedModel = await tf.loadLayersModel('indexeddb://safety-observations-model');
+                } catch (indexedDbError) {
+                    try {
+                        loadedModel = await tf.loadLayersModel('localstorage://safety-observations-model');
+                    } catch (localStorageError) {
+                        alert('Model not found. Please train the model first.');
+                        return;
+                    }
+                }
+
                 setModel(loadedModel);
-                loadAndPreprocessData(predictFile, (data) => {
-                    const xs = tf.tensor2d(data.observations, [data.observations.length, 35]); // Ensure shape matches [null, 35]
+                loadAndPreprocessData(predictFile, (data, uniqueLocations) => {
+                    const xs = tf.tensor2d(data.observations, [data.observations.length, 60]); // Ensure shape matches [null, 60]
                     const predictionData = loadedModel.predict(xs).dataSync();
                     const predictionWithConfidence = Array.from(predictionData).map(pred => ({
                         prediction: pred > 0.5 ? 'Yes' : 'No',
                         confidence: pred
                     }));
                     setPredictions(predictionWithConfidence);
-                    updateChart(predictionWithConfidence, data.observations, data.uniqueCategories);
+                    updateCharts(predictionWithConfidence, data.observations, data.uniqueCategories, uniqueLocations);
                 }, false);
             } catch (error) {
-                console.warn('Model not found in IndexedDB, attempting to load from localStorage.');
-                try {
-                    const loadedModel = await tf.loadLayersModel('localstorage://safety-observations-model');
-                    setModel(loadedModel);
-                    loadAndPreprocessData(predictFile, (data) => {
-                        const xs = tf.tensor2d(data.observations, [data.observations.length, 35]); // Ensure shape matches [null, 35]
-                        const predictionData = loadedModel.predict(xs).dataSync();
-                        const predictionWithConfidence = Array.from(predictionData).map(pred => ({
-                            prediction: pred > 0.5 ? 'Yes' : 'No',
-                            confidence: pred
-                        }));
-                        setPredictions(predictionWithConfidence);
-                        updateChart(predictionWithConfidence, data.observations, data.uniqueCategories);
-                    }, false);
-                } catch (error) {
-                    alert('Model not found. Please train the model first.');
-                }
+                alert('An error occurred during the prediction process.');
             }
         } else {
             alert('Please choose a prediction file!');
         }
     };
 
-    const updateChart = (predictions, observations, uniqueCategories) => {
+    const updateCharts = (predictions, observations, uniqueCategories, uniqueLocations) => {
+        const numCategories = uniqueCategories.length;
+        const numLocations = uniqueLocations.length;
+
+        // Initialize counts
         const predictionCount = uniqueCategories.reduce((acc, category) => {
-            acc[category] = 0;
+            acc[category] = { UnsafeAct: 0, UnsafeCondition: 0 };
             return acc;
         }, {});
 
+        const locationCount = uniqueLocations.reduce((acc, location) => {
+            acc[location] = 0;
+            return acc;
+        }, {});
+
+        // Process observations
         observations.forEach((obs, index) => {
-            const categoryIndex = obs.slice(MAX_TEXT_LEN).indexOf(1);
-            const category = uniqueCategories[categoryIndex !== -1 ? categoryIndex : 0]; // Fallback to the first category if none matched
+            const categoryStartIndex = MAX_TEXT_LEN;
+            const categoryEndIndex = categoryStartIndex + numCategories;
+            const locationStartIndex = categoryEndIndex;
+            const locationEndIndex = locationStartIndex + numLocations;
+
+            // Extract category and location
+            const categoryIndex = obs.slice(categoryStartIndex, categoryEndIndex).indexOf(1);
+            const category = uniqueCategories[categoryIndex !== -1 ? categoryIndex : 0];
+
+            const locationIndex = obs.slice(locationStartIndex, locationEndIndex).indexOf(1);
+            const location = uniqueLocations[locationIndex !== -1 ? locationIndex : uniqueLocations.length - 1] || 'Unknown';
+
+            // Determine if it's an Unsafe Act or Unsafe Condition
             if (predictions[index].prediction === 'Yes') {
-                predictionCount[category]++;
+                if (obs[MAX_TEXT_LEN] === 1) {  // Check if the observation is marked as Unsafe Act
+                    predictionCount[category].UnsafeAct++;
+                } else {
+                    predictionCount[category].UnsafeCondition++;
+                }
+
+                // Update location count
+                locationCount[location]++;
             }
         });
 
+        // Log location counts to the console
+        console.log("Location Counts:", locationCount);
+
+        // Prepare data for pie charts
+        const unsafeActData = uniqueCategories.map(cat => ({
+            category: cat,
+            count: predictionCount[cat]?.UnsafeAct || 0
+        }));
+
+        const unsafeConditionData = uniqueCategories.map(cat => ({
+            category: cat,
+            count: predictionCount[cat]?.UnsafeCondition || 0
+        }));
+
+        // Set the chart data
         setChartData({
-            labels: uniqueCategories,
-            datasets: [{
-                label: 'Unsafe Predictions',
-                data: Object.values(predictionCount),
-                backgroundColor: uniqueCategories.map((_, index) => `#${Math.floor(Math.random() * 16777215).toString(16)}`), // Random colors
-                hoverBackgroundColor: uniqueCategories.map((_, index) => `#${Math.floor(Math.random() * 16777215).toString(16)}`) // Random colors
-            }]
+            UnsafeAct: {
+                labels: unsafeActData.map(data => data.category),
+                datasets: [{
+                    label: 'Unsafe Acts',
+                    data: unsafeActData.map(data => data.count),
+                    backgroundColor: unsafeActData.map(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`),
+                    hoverBackgroundColor: unsafeActData.map(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`)
+                }]
+            },
+            UnsafeCondition: {
+                labels: unsafeConditionData.map(data => data.category),
+                datasets: [{
+                    label: 'Unsafe Conditions',
+                    data: unsafeConditionData.map(data => data.count),
+                    backgroundColor: unsafeConditionData.map(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`),
+                    hoverBackgroundColor: unsafeConditionData.map(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`)
+                }]
+            },
+            Locations: {
+                labels: Object.keys(locationCount),
+                datasets: [{
+                    label: 'Locations',
+                    data: Object.values(locationCount),
+                    backgroundColor: Object.keys(locationCount).map(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`),
+                    hoverBackgroundColor: Object.keys(locationCount).map(() => `#${Math.floor(Math.random() * 16777215).toString(16)}`)
+                }]
+            }
         });
     };
+
+
+
 
     const generateReport = () => {
         const doc = new jsPDF();
@@ -225,7 +291,18 @@ const PredictiveAnalytics = () => {
                 <>
                     <div className="chart-container">
                         <h2>Prediction Results</h2>
-                        <Pie data={chartData} />
+                        <div>
+                            <h3>Unsafe Acts</h3>
+                            {chartData.UnsafeAct && <Pie data={chartData.UnsafeAct} />}
+                        </div>
+                        <div>
+                            <h3>Unsafe Conditions</h3>
+                            {chartData.UnsafeCondition && <Pie data={chartData.UnsafeCondition} />}
+                        </div>
+                        <div>
+                            <h3>Locations</h3>
+                            {chartData.Locations && <Pie data={chartData.Locations} />}
+                        </div>
                     </div>
                     <div className="export-buttons">
                         <button onClick={() => exportData('csv')}>Export as CSV</button>

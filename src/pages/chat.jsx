@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
+import { FaThumbsDown, FaThumbsUp, FaRedo } from 'react-icons/fa'; // Import icons for Flag and Regenerate
 
 const Chat = () => {
     const [query, setQuery] = useState('');
@@ -14,7 +15,6 @@ const Chat = () => {
         if (!socketRef.current) {
             connectWebSocket();
         }
-
         return () => {
             if (socketRef.current) {
                 socketRef.current.close();
@@ -24,7 +24,11 @@ const Chat = () => {
     }, []);
 
     const loadModel = async () => {
-        modelRef.current = await tf.loadLayersModel('http://localhost:5000/model.json');
+        try {
+            modelRef.current = await tf.loadLayersModel('http://localhost:5000/model.json');
+        } catch (error) {
+            console.error('Error loading model:', error);
+        }
     };
 
     const reconnectWebSocket = (retryCount = 0) => {
@@ -41,7 +45,7 @@ const Chat = () => {
             return;
         }
 
-        socketRef.current = new WebSocket('ws://localhost:5000/');
+        socketRef.current = new WebSocket('ws://localhost:5000/'); // Correct WebSocket URL
         console.log('WebSocket connecting...');
 
         socketRef.current.onopen = () => {
@@ -56,7 +60,7 @@ const Chat = () => {
         socketRef.current.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log('Received data:', data); // Log the received data for debugging
+                console.log('Received data:', data);
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -82,9 +86,9 @@ const Chat = () => {
 
     const processMessage = (data) => {
         try {
-            console.log('Processing message data:', data); // Log data before processing
+            console.log('Processing message data:', data);
             if (data.response) {
-                const botMessage = { user: 'QHSE Expert', text: data.response };
+                const botMessage = { user: 'QHSE Expert', text: data.response, id: data.id };
                 setMessages(prevMessages => [...prevMessages, botMessage]);
             } else {
                 throw new Error('Invalid message format received');
@@ -110,8 +114,7 @@ const Chat = () => {
 
         try {
             if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-                const response = await getBotResponse(query);
-                socketRef.current.send(JSON.stringify({ message: query, response }));
+                socketRef.current.send(JSON.stringify({ message: query }));
             } else {
                 console.error('WebSocket is not open');
                 const errorMessage = { user: 'QHSE Expert', text: 'Failed to send message via WebSocket' };
@@ -126,49 +129,69 @@ const Chat = () => {
         }
     };
 
-    const getBotResponse = async (query) => {
-        if (!modelRef.current) {
-            console.error('Model is not loaded');
-            return 'Error: Model not loaded';
+    const handleRegenerate = async (id) => {
+        try {
+            if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                socketRef.current.send(JSON.stringify({ action: 'regenerate', id }));
+            } else {
+                console.error('WebSocket is not open');
+            }
+        } catch (error) {
+            console.error('Error sending regenerate request:', error);
         }
-
-        // Preprocess the query to match the input format expected by the model
-        const encodedQuery = encodeQuery(query);
-        const responseTensor = modelRef.current.predict(encodedQuery);
-        const response = decodeResponse(responseTensor);
-        return response;
     };
 
-    const encodeQuery = (query) => {
-        // Implement encoding logic
-        // Convert the query string to a tensor that matches the input shape of the model
-        return tf.tensor([query.split(' ').map(word => word.charCodeAt(0))], [1, query.length]);
+    const handleFlag = async (id, flagType) => {
+        try {
+            if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                socketRef.current.send(JSON.stringify({ action: 'flag', id, flagType }));
+                console.log('Flag action = ', action, ' -- type =', flagType, ' -- id', id);
+                // Trigger model retraining on user feedback
+                if (flagType === 'up' || flagType === 'down') {
+                    await fetch('/train-and-save-model', { method: 'POST' });
+                    console.log('Model retrained with new data');
+                }
+            } else {
+                console.error('WebSocket is not open');
+            }
+        } catch (error) {
+            console.error('Error sending flag request:', error);
+        }
     };
 
-    const decodeResponse = (responseTensor) => {
-        // Implement decoding logic
-        // Convert the output tensor from the model back to a string response
-        return responseTensor.arraySync().map(code => String.fromCharCode(code)).join('');
-    };
 
     return (
         <section id="fh5co-services">
             <div className="container">
-        <div className="chat-container">
-            <div className="chat-messages">
-                {messages.map((message, index) => (
-                    <div key={index} className={`chat-message ${message.user === 'You' ? 'user' : 'bot'}`}>
-                        <strong>{message.user}:</strong> {message.text}
+                <div className="chat-container">
+                    <div className="chat-messages">
+                        {messages.map((message, index) => (
+                            <div key={index} className={`chat-message ${message.user === 'You' ? 'user' : 'bot'}`}>
+                                <strong>{message.user}:</strong> {message.text}
+                                {message.user === 'QHSE Expert' && (
+                                    <div className="actions">
+                                        <button onClick={() => handleRegenerate(message.id)} aria-label="Regenerate">
+                                            <FaRedo size={15} /> {/* Regenerate icon */}
+                                        </button>
+                                        <button onClick={() => handleFlag(message.id, 'up')} aria-label="Flag Up">
+                                            <FaThumbsUp size={15} /> {/* Flag icon */}
+                                        </button>
+                                        <button onClick={() => handleFlag(message.id, 'down')} aria-label="Flag Down">
+                                            <FaThumbsDown size={15} /> {/* Flag icon */}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {loading && <div className="chat-message bot"><div className="loader"></div></div>}
                     </div>
-                ))}
-                {loading && <div className="chat-message bot"><div className="loader"></div></div>}
-            </div>
-            <form onSubmit={handleSubmit} className="chat-form">
-                <input type="text" value={query} onChange={handleInputChange} placeholder="Type your message" required />
-                <button type="submit" disabled={loading}>Send</button>
-            </form>
+                    <form onSubmit={handleSubmit} className="chat-form">
+                        <input type="text" value={query} onChange={handleInputChange} placeholder="Type your message" required />
+                        <button type="submit" disabled={loading}>Send</button>
+                    </form>
                 </div>
-            </div></section>
+            </div>
+        </section>
     );
 };
 

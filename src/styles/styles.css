@@ -318,17 +318,48 @@ input[type="file"] {
 
 .chart-container {
     display: flex;
-    justify-content: space-around;
-    margin-top: 20px;
-    flex-wrap: wrap;
+    flex-direction: column; /* Align charts vertically */
+    align-items: center; /* Center charts horizontally */
+    justify-content: center; /* Center charts vertically */
+    width: 90%; /* Ensure the container is not too wide */
+    max-width: 1200px; /* Set a maximum width for better appearance */
+    margin: 20px auto; /* Center the container horizontally with margin */
+    padding: 30px; /* Add padding for inner spacing */
+    background-color: #ffffff; /* White background for contrast */
+    border-radius: 12px; /* Rounded corners for modern look */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+    transition: transform 0.2s; /* Smooth transition for hover effect */
 }
 
-    .chart-container canvas {
-        width: 100%;
-        max-width: 600px; /* Increased max-width for better visibility */
-        height: auto;
-        margin: 10px;
+    .chart-container:hover {
+        transform: scale(1.02); /* Slightly enlarge on hover for interactivity */
     }
+
+    .chart-container h2 {
+        font-family: 'HK Grotesk', sans-serif; /* Ensure consistent font */
+        font-size: 2rem; /* Larger font for the heading */
+        color: #0091ce; /* Use primary color for the heading */
+        margin-bottom: 30px; /* Space between title and charts */
+        text-align: center; /* Center align the heading */
+    }
+
+    .chart-container > div {
+        width: 100%; /* Each chart takes full width */
+        max-width: 400px; /* Set a maximum width for charts */
+        margin-bottom: 30px; /* Space between each chart */
+    }
+
+    .chart-container canvas {
+        width: 100%; /* Ensure canvas uses full width */
+        height: auto; /* Maintain aspect ratio */
+        border-radius: 8px; /* Slight rounding of chart corners */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for charts */
+        transition: transform 0.2s; /* Smooth transition for hover effect */
+    }
+
+        .chart-container canvas:hover {
+            transform: scale(1.01); /* Slightly enlarge on hover for interactivity */
+        }
 
 .container {
     margin: 20px;
@@ -711,3 +742,21 @@ input[type="file"] {
         opacity: 0;
     }
 }
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+    .actions button {
+        background: none;
+        padding: 0;
+        margin: 0.5rem;
+        border: none;
+        cursor: pointer;
+        color: #007bff;
+        font-size: 1.2rem;
+    }
+
+        .actions button:hover {
+            color: #0056b3;
+        }
