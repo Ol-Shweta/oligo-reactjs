@@ -1,20 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import * as tf from '@tensorflow/tfjs';
 import { FaThumbsDown, FaThumbsUp, FaRedo } from 'react-icons/fa'; // Import icons for Flag and Regenerate
 
 const Chat = () => {
     const [query, setQuery] = useState('');
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [modelLoaded, setModelLoaded] = useState(false);
     const socketRef = useRef(null);
     const hasSentWelcomeMessageRef = useRef(false);
-    const modelRef = useRef(null);
 
     useEffect(() => {
-        loadModel();
-        if (!socketRef.current) {
-            connectWebSocket();
-        }
+        connectWebSocket();
         return () => {
             if (socketRef.current) {
                 socketRef.current.close();
@@ -23,33 +19,18 @@ const Chat = () => {
         };
     }, []);
 
-    const loadModel = async () => {
-        try {
-            modelRef.current = await tf.loadLayersModel('http://localhost:5000/model.json');
-        } catch (error) {
-            console.error('Error loading model:', error);
-        }
-    };
-
-    const reconnectWebSocket = (retryCount = 0) => {
-        setTimeout(() => {
-            if (!socketRef.current || socketRef.current.readyState === WebSocket.CLOSED) {
-                connectWebSocket(retryCount);
-            }
-        }, Math.min(10000, 1000 * 2 ** retryCount)); // Exponential backoff with a max delay of 10 seconds
-    };
-
-    const connectWebSocket = (retryCount = 0) => {
+    const connectWebSocket = () => {
         if (socketRef.current && socketRef.current.readyState !== WebSocket.CLOSED) {
             console.log('WebSocket is already open or in the process of opening.');
             return;
         }
 
-        socketRef.current = new WebSocket('ws://localhost:5000/'); // Correct WebSocket URL
+        socketRef.current = new WebSocket('ws://localhost:5000/');
         console.log('WebSocket connecting...');
 
         socketRef.current.onopen = () => {
             console.log('WebSocket connected');
+            setModelLoaded(true); // Update modelLoaded state
             if (!hasSentWelcomeMessageRef.current) {
                 const initialMessage = { user: 'QHSE Expert', text: 'Hello! How can I help you?' };
                 setMessages((prevMessages) => [...prevMessages, initialMessage]);
@@ -74,29 +55,58 @@ const Chat = () => {
 
         socketRef.current.onclose = () => {
             console.log('WebSocket disconnected');
+            // Clear the welcome message if the WebSocket closes
             setMessages((prevMessages) => prevMessages.filter(msg => !(msg.user === 'QHSE Expert' && msg.text === 'Hello! How can I help you?')));
             hasSentWelcomeMessageRef.current = false;
-            reconnectWebSocket(retryCount + 1);
+            reconnectWebSocket();
         };
 
         socketRef.current.onerror = (error) => {
             console.error('WebSocket error:', error);
+            // Attempt to reconnect on error
+            reconnectWebSocket();
         };
     };
 
+    const reconnectWebSocket = (retryCount = 0) => {
+        if (retryCount > 10) {
+            console.error('Max retries reached. Could not reconnect to WebSocket.');
+            return;
+        }
+
+        setTimeout(() => {
+            if (!socketRef.current || socketRef.current.readyState === WebSocket.CLOSED) {
+                console.log('Reconnecting WebSocket...');
+                connectWebSocket();
+            }
+        }, Math.min(10000, 1000 * 2 ** retryCount)); // Exponential backoff
+    };
+
     const processMessage = (data) => {
+        console.log('Processing message data:', data);
+
         try {
-            console.log('Processing message data:', data);
-            if (data.response) {
-                const botMessage = { user: 'QHSE Expert', text: data.response, id: data.id };
-                setMessages(prevMessages => [...prevMessages, botMessage]);
+            // Ensure data has the expected structure
+            if (data && typeof data === 'object' && 'response' in data) {
+                const botMessage = { user: 'QHSE Expert', text: data.response };
+                setMessages((prevMessages) => [...prevMessages, botMessage]);
             } else {
-                throw new Error('Invalid message format received');
+                // Advanced NLP processing or fallback logic
+                const question = data.question.toLowerCase();
+
+                if (question.includes('what is qhse')) {
+                    const botMessage = { user: 'QHSE Expert', text: 'QHSE stands for Quality, Health, Safety, and Environment. It encompasses all activities related to managing quality assurance and health and safety standards.' };
+                    setMessages((prevMessages) => [...prevMessages, botMessage]);
+                } else {
+                    console.error('Invalid message format or unknown question:', data);
+                    const errorMessage = { user: 'QHSE Expert', text: 'I\'m sorry, I didn\'t understand that question.' };
+                    setMessages((prevMessages) => [...prevMessages, errorMessage]);
+                }
             }
         } catch (error) {
             console.error('Error processing message:', error);
             const errorMessage = { user: 'QHSE Expert', text: 'Failed to process message' };
-            setMessages(prevMessages => [...prevMessages, errorMessage]);
+            setMessages((prevMessages) => [...prevMessages, errorMessage]);
         }
     };
 
@@ -135,9 +145,13 @@ const Chat = () => {
                 socketRef.current.send(JSON.stringify({ action: 'regenerate', id }));
             } else {
                 console.error('WebSocket is not open');
+                const errorMessage = { user: 'QHSE Expert', text: 'Failed to regenerate message via WebSocket' };
+                setMessages((prevMessages) => [...prevMessages, errorMessage]);
             }
         } catch (error) {
             console.error('Error sending regenerate request:', error);
+            const errorMessage = { user: 'QHSE Expert', text: 'Failed to regenerate message' };
+            setMessages((prevMessages) => [...prevMessages, errorMessage]);
         }
     };
 
@@ -145,8 +159,7 @@ const Chat = () => {
         try {
             if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
                 socketRef.current.send(JSON.stringify({ action: 'flag', id, flagType }));
-                console.log('Flag action = ', action, ' -- type =', flagType, ' -- id', id);
-                // Trigger model retraining on user feedback
+                console.log('Flag action = ', flagType, ' -- id =', id);
                 if (flagType === 'up' || flagType === 'down') {
                     await fetch('/train-and-save-model', { method: 'POST' });
                     console.log('Model retrained with new data');
@@ -158,7 +171,6 @@ const Chat = () => {
             console.error('Error sending flag request:', error);
         }
     };
-
 
     return (
         <section id="fh5co-services">
@@ -183,10 +195,15 @@ const Chat = () => {
                                 )}
                             </div>
                         ))}
-                        {loading && <div className="chat-message bot"><div className="loader"></div></div>}
                     </div>
                     <form onSubmit={handleSubmit} className="chat-form">
-                        <input type="text" value={query} onChange={handleInputChange} placeholder="Type your message" required />
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={handleInputChange}
+                            placeholder="Type your message..."
+                            disabled={loading}
+                        />
                         <button type="submit" disabled={loading}>Send</button>
                     </form>
                 </div>
