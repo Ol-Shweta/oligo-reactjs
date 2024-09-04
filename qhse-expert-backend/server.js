@@ -1,19 +1,17 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const tf = require('@tensorflow/tfjs');
-require('@tensorflow/tfjs-node'); // Load TensorFlow.js Node bindings
+const tf = require('@tensorflow/tfjs-node');
 const WebSocket = require('ws');
 const natural = require('natural');
-const tokenizer = new natural.WordTokenizer();
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios'); // Import axios
+const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Enable CORS for all routes
+// Middleware setup
 app.use(cors());
 app.use(bodyParser.json());
 app.use('/model', express.static(path.join(__dirname, 'model')));
@@ -26,35 +24,28 @@ let previousResponses = {};
 
 const responses = require('./responses');
 const qaPairs = require('./qaPairs');
-const { trainAndSaveModel } = require('./trainchat');
 
+// Define paths
 const modelPath = path.join(__dirname, 'model', 'model.json');
 const modelUrl = 'http://localhost:5000/model/model.json';
-console.log('modelPath...', modelPath);
-console.log('modelUrl...', modelUrl);
+const embeddingsPath = path.join(__dirname, 'qaEmbeddings.json');
 
+// Download and save the model
 async function downloadAndSaveModel() {
     console.log('Downloading model...');
     try {
-        // Download the model.json file
         const response = await axios.get(modelUrl, { responseType: 'json' });
-        console.log('response...', response);
         if (response.status !== 200) {
             throw new Error(`Failed to download model: ${response.statusText}`);
         }
 
-        // Ensure the 'model' directory exists
         const modelDir = path.dirname(modelPath);
-        console.log('modelDir...', modelDir);
         if (!fs.existsSync(modelDir)) {
             fs.mkdirSync(modelDir, { recursive: true });
         }
 
-        // Write the model.json file
         fs.writeFileSync(modelPath, JSON.stringify(response.data));
-        console.log('Model JSON downloaded and saved');
 
-        // Download and save the associated weights (e.g., group1-shard1of1.bin)
         const weightManifest = response.data.weightsManifest;
         for (const weightGroup of weightManifest) {
             for (const weightPath of weightGroup.paths) {
@@ -62,59 +53,79 @@ async function downloadAndSaveModel() {
                 const weightResponse = await axios.get(weightUrl, { responseType: 'arraybuffer' });
                 const weightFilePath = path.join(modelDir, weightPath);
                 fs.writeFileSync(weightFilePath, weightResponse.data);
-                console.log(`Weight file ${weightPath} downloaded and saved`);
             }
         }
-
     } catch (error) {
         console.error('Error downloading model:', error.message);
         throw error;
     }
 }
 
-
+// Load the model
 async function loadModel() {
     try {
-        if (!fs.existsSync(modelPath)) {
-            await downloadAndSaveModel();
-        }
-        model = await tf.loadGraphModel(`file://${modelPath}`);
-        console.log('Model loaded');
-        await prepareEmbeddings();
+        model = await tf.loadLayersModel(`file://${modelPath}`);
+        console.log('Model loaded successfully');
     } catch (error) {
         console.error('Error loading model:', error.message);
         throw error;
     }
 }
 
+// Prepare embeddings
 async function prepareEmbeddings() {
-    const sentences = qaPairs.map(pair => pair.question);
-    const embeddings = await model.predict(tf.tensor(sentences)); // Use appropriate prediction method
-    qaEmbeddings = embeddings.arraySync();
+    if (!model) throw new Error('Model is not loaded');
+
+    if (fs.existsSync(embeddingsPath)) {
+        qaEmbeddings = JSON.parse(fs.readFileSync(embeddingsPath, 'utf8'));
+    } else {
+        console.error('Embeddings file not found.');
+        throw new Error('Embeddings file not found.');
+    }
 }
 
+// Encode text
+function encodeText(text) {
+    const tokenToIndex = { 'example': 1, 'text': 2 }; // Example mapping
+    const tokenizer = new natural.WordTokenizer(); // Correct instantiation
+    const tokens = tokenizer.tokenize(text);
+    const encoded = tokens.map(token => tokenToIndex[token] || 0);
+
+    return encoded.length === 1 ? encoded : encoded.slice(0, 1);
+}
+
+// Find the best answer
 async function findBestAnswer(query) {
-    if (typeof query !== 'string' || !query.trim()) {
-        return 'Query must be a non-empty string.';
-    }
+    if (!model) throw new Error('Model is not loaded');
+    const cleanedQuery = query.toLowerCase();
 
-    const queryTensor = tf.tensor([query]);
-    const queryEmbedding = model.predict(queryTensor).arraySync();
+    const encodedQuery = encodeText(cleanedQuery);
+    const queryTensor = tf.tensor2d([encodedQuery], [1, encodedQuery.length]);
 
-    let bestMatchIndex = -1;
-    let bestMatchScore = -Infinity;
+    try {
+        const queryEmbedding = model.predict(queryTensor).arraySync();
 
-    for (let i = 0; i < qaEmbeddings.length; i++) {
-        const score = tf.metrics.cosineProximity(queryEmbedding, qaEmbeddings[i]).arraySync();
-        if (score > bestMatchScore) {
-            bestMatchScore = score;
-            bestMatchIndex = i;
+        let bestMatchIndex = -1;
+        let bestMatchScore = -Infinity;
+
+        for (let i = 0; i < qaEmbeddings.length; i++) {
+            const score = tf.losses.cosineDistance(tf.tensor1d(queryEmbedding), tf.tensor1d(qaEmbeddings[i]), 0).arraySync();
+            if (score > bestMatchScore) {
+                bestMatchScore = score;
+                bestMatchIndex = i;
+            }
         }
-    }
 
-    return bestMatchIndex !== -1 ? qaPairs[bestMatchIndex].answer : 'I am not sure how to respond to that.';
+        queryTensor.dispose();
+
+        return bestMatchIndex !== -1 ? qaPairs[bestMatchIndex].answer : 'I am not sure how to respond to that.';
+    } catch (error) {
+        console.error('Error finding best answer:', error);
+        return 'An error occurred while processing your query.';
+    }
 }
 
+// Update the model with new data
 async function updateModel() {
     if (trainingData.length === 0) {
         console.log('No training data to update the model.');
@@ -123,118 +134,21 @@ async function updateModel() {
 
     console.log('Updating model with new training data...');
     const newQAPairs = trainingData.map(data => ({
-        question: data.id, // Assuming id as a placeholder for the actual question text
+        question: data.id,
         answer: data.feedback === 'up' ? 'Improved response based on feedback' : 'Adjusted response based on feedback'
     }));
 
     const allQAPairs = [...qaPairs, ...newQAPairs];
     const sentences = allQAPairs.map(pair => pair.question);
 
-    const embeddings = await model.predict(tf.tensor(sentences));
-    qaEmbeddings = embeddings.arraySync();
+    const embeddings = await model.predict(tf.tensor(sentences)).array();
+    qaEmbeddings = embeddings;
 
     trainingData = [];
-
     console.log('Model updated with new training data.');
 }
 
-app.post('/api/askQHSEExpert', async (req, res) => {
-    const { query } = req.body;
-
-    try {
-        if (!model) {
-            throw new Error('Model not loaded');
-        }
-
-        if (typeof query !== 'string') {
-            throw new Error('Query must be a string');
-        }
-
-        const lowerCaseQuery = query.toLowerCase();
-        const tokens = tokenizer.tokenize(lowerCaseQuery);
-        const cleanedQuery = tokens.join(' ');
-
-        const predefinedResponse = responses[cleanedQuery] || null;
-
-        if (predefinedResponse) {
-            res.json({ response: predefinedResponse });
-        } else {
-            const answer = await findBestAnswer(query);
-            res.json({ response: answer });
-        }
-    } catch (error) {
-        console.error('Error processing query:', error.message);
-        res.status(500).json({ error: 'Failed to process query' });
-    }
-});
-
-app.get('/api/askQHSEExpert', (req, res) => {
-    res.status(405).send('GET method not allowed. Use POST method instead.');
-});
-
-app.get('/', (req, res) => {
-    res.send('QHSE Expert API is running');
-});
-
-const server = app.listen(port, () => {
-    console.log(`QHSE Expert app listening at http://localhost:${port}`);
-});
-
-const wss = new WebSocket.Server({ server });
-
-app.post('/train-and-save-model', async (req, res) => {
-    try {
-        await trainAndSaveModel();
-        res.status(200).send('Model retrained successfully');
-    } catch (error) {
-        res.status(500).send('Failed to retrain model');
-    }
-});
-
-wss.on('connection', ws => {
-    console.log('WebSocket client connected');
-
-    ws.on('message', async message => {
-        console.log('received:', message);
-
-        try {
-            if (!model) {
-                throw new Error('Model not loaded');
-            }
-
-            const messageString = Buffer.isBuffer(message) ? message.toString('utf-8') : message;
-            const data = JSON.parse(messageString);
-
-            if (data.action) {
-                const response = await handleAction(data);
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ response, id: data.id }));
-                }
-            } else if (data.message) {
-                const response = await handleMessage(data);
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ response, id: data.id }));
-                }
-            } else {
-                throw new Error('Invalid data format received');
-            }
-        } catch (error) {
-            console.error('Error processing query:', error.message);
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ error: 'Failed to process query' }));
-            }
-        }
-    });
-
-    ws.on('close', () => {
-        console.log('WebSocket client disconnected');
-    });
-
-    ws.on('error', error => {
-        console.error('WebSocket error:', error); // Log the full error object
-    });
-});
-
+// Handle WebSocket action messages
 async function handleAction(data) {
     let response;
     switch (data.action) {
@@ -258,8 +172,10 @@ async function handleAction(data) {
     return response;
 }
 
+// Handle WebSocket message queries
 async function handleMessage(data) {
     const currentQuery = data.message.toLowerCase();
+    const tokenizer = new natural.WordTokenizer(); // Correct instantiation
     const tokens = tokenizer.tokenize(currentQuery);
     const cleanedQuery = tokens.join(' ');
 
@@ -269,15 +185,85 @@ async function handleMessage(data) {
     return predefinedResponse || await findBestAnswer(currentQuery);
 }
 
-process.on('SIGINT', () => {
-    console.log('Server shutting down...');
-    server.close(() => {
-        console.log('Server shut down gracefully');
-        process.exit(0);
+// Set up Express routes
+app.post('/api/askQHSEExpert', async (req, res) => {
+    const { query } = req.body;
+
+    try {
+        if (!model) throw new Error('Model not loaded');
+        if (typeof query !== 'string') throw new Error('Query must be a string');
+
+        const answer = await handleMessage({ message: query });
+        res.json({ response: answer });
+    } catch (error) {
+        console.error('Error processing query:', error.message);
+        res.status(500).json({ error: 'Failed to process query' });
+    }
+});
+
+app.get('/api/askQHSEExpert', (req, res) => {
+    res.status(405).send('GET method not allowed. Use POST method instead.');
+});
+
+app.get('/', (req, res) => {
+    res.send('QHSE Expert API is running');
+});
+
+const server = app.listen(port, () => {
+    console.log(`QHSE Expert app listening at http://localhost:${port}`);
+});
+
+// Set up WebSocket server with reconnection and heartbeat
+const wss = new WebSocket.Server({ server });
+
+function heartbeat() {
+    this.isAlive = true;
+}
+
+function checkHealth() {
+    wss.clients.forEach(client => {
+        if (!client.isAlive) {
+            client.terminate();
+        }
+        client.isAlive = false;
+        client.ping();
+    });
+}
+
+wss.on('connection', ws => {
+    ws.isAlive = true;
+    ws.on('pong', heartbeat);
+
+    ws.on('message', async message => {
+        try {
+            const data = JSON.parse(message);
+
+            let response;
+            if (data.message) {
+                response = await handleMessage(data);
+            } else if (data.action) {
+                response = await handleAction(data);
+            }
+
+            ws.send(JSON.stringify({ id: data.id, response }));
+        } catch (error) {
+            console.error('Error handling message:', error.message);
+            ws.send(JSON.stringify({ error: 'Failed to process request' }));
+        }
     });
 });
 
-loadModel().catch(err => {
-    console.error('Failed to load model:', err.message);
-    process.exit(1);
-});
+setInterval(checkHealth, 30000); // Check connection health every 30 seconds
+
+// Initialize the model and embeddings on server start
+(async () => {
+    try {
+        await downloadAndSaveModel();
+        await loadModel();
+        await prepareEmbeddings();
+        console.log('Server is ready to accept connections');
+    } catch (error) {
+        console.error('Failed to initialize the server:', error.message);
+        process.exit(1);
+    }
+})();

@@ -21,6 +21,7 @@
     "express": "^4.19.2",
     "mocha": "^10.7.0",
     "natural": "^7.1.0",
+    "node-fetch": "^3.3.2",
     "react-chartjs-2": "^5.2.0",
     "sinon": "^18.0.0",
     "ws": "^8.18.0",
