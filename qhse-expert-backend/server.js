@@ -3,10 +3,10 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const tf = require('@tensorflow/tfjs-node');
 const WebSocket = require('ws');
-const natural = require('natural');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const natural = require('natural');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -22,32 +22,29 @@ let trainingData = [];
 let previousQueries = {};
 let previousResponses = {};
 
-const responses = require('./responses');
-const qaPairs = require('./qaPairs');
-
-// Define paths
+// Paths
 const modelPath = path.join(__dirname, 'model', 'model.json');
 const modelUrl = 'http://localhost:5000/model/model.json';
 const embeddingsPath = path.join(__dirname, 'qaEmbeddings.json');
+const tokenToIndexPath = path.join(__dirname, 'tokenToIndex.json');
+
+// Load responses and QA pairs
+const responses = require('./responses');
+const qaPairs = require('./qaPairs');
 
 // Download and save the model
 async function downloadAndSaveModel() {
-    console.log('Downloading model...');
     try {
+        console.log('Downloading model...');
         const response = await axios.get(modelUrl, { responseType: 'json' });
-        if (response.status !== 200) {
-            throw new Error(`Failed to download model: ${response.statusText}`);
-        }
-
         const modelDir = path.dirname(modelPath);
         if (!fs.existsSync(modelDir)) {
             fs.mkdirSync(modelDir, { recursive: true });
         }
-
         fs.writeFileSync(modelPath, JSON.stringify(response.data));
 
-        const weightManifest = response.data.weightsManifest;
-        for (const weightGroup of weightManifest) {
+        // Download model weights
+        for (const weightGroup of response.data.weightsManifest) {
             for (const weightPath of weightGroup.paths) {
                 const weightUrl = modelUrl.replace('model.json', weightPath);
                 const weightResponse = await axios.get(weightUrl, { responseType: 'arraybuffer' });
@@ -57,7 +54,6 @@ async function downloadAndSaveModel() {
         }
     } catch (error) {
         console.error('Error downloading model:', error.message);
-        throw error;
     }
 }
 
@@ -68,87 +64,84 @@ async function loadModel() {
         console.log('Model loaded successfully');
     } catch (error) {
         console.error('Error loading model:', error.message);
-        throw error;
     }
 }
 
 // Prepare embeddings
 async function prepareEmbeddings() {
-    if (!model) throw new Error('Model is not loaded');
-
     if (fs.existsSync(embeddingsPath)) {
         qaEmbeddings = JSON.parse(fs.readFileSync(embeddingsPath, 'utf8'));
+        console.log('Embeddings loaded successfully.');
     } else {
-        console.error('Embeddings file not found.');
         throw new Error('Embeddings file not found.');
+    }
+}
+
+// Load token-to-index mapping
+function loadTokenToIndex() {
+    if (fs.existsSync(tokenToIndexPath)) {
+        return JSON.parse(fs.readFileSync(tokenToIndexPath, 'utf8'));
+    } else {
+        throw new Error('Token-to-Index file not found.');
     }
 }
 
 // Encode text
 function encodeText(text) {
-    const tokenToIndex = { 'example': 1, 'text': 2 }; // Example mapping
-    const tokenizer = new natural.WordTokenizer(); // Correct instantiation
-    const tokens = tokenizer.tokenize(text);
-    const encoded = tokens.map(token => tokenToIndex[token] || 0);
+    const tokenizer = new natural.WordTokenizer();
+    const tokenToIndex = loadTokenToIndex();
+    const tokens = tokenizer.tokenize(text.toLowerCase());
 
-    return encoded.length === 1 ? encoded : encoded.slice(0, 1);
+    const encoded = tokens.map(token => tokenToIndex[token] || 0);
+    const MAX_LEN = 7;
+
+    // Pad or truncate to match expected length
+    return tf.tensor2d([encoded.length < MAX_LEN ? [...encoded, ...Array(MAX_LEN - encoded.length).fill(0)] : encoded.slice(0, MAX_LEN)], [1, MAX_LEN]);
+}
+
+// Calculate cosine similarity
+function cosineSimilarity(embedding1, embedding2) {
+    const dotProduct = tf.sum(tf.mul(embedding1, embedding2));
+    const magnitude1 = tf.sqrt(tf.sum(tf.square(embedding1)));
+    const magnitude2 = tf.sqrt(tf.sum(tf.square(embedding2)));
+    const similarity = dotProduct.div(magnitude1.mul(magnitude2));
+    return similarity.arraySync();
 }
 
 // Find the best answer
 async function findBestAnswer(query) {
     if (!model) throw new Error('Model is not loaded');
-    const cleanedQuery = query.toLowerCase();
 
-    const encodedQuery = encodeText(cleanedQuery);
-    const queryTensor = tf.tensor2d([encodedQuery], [1, encodedQuery.length]);
+    const encodedQuery = encodeText(query);
+    const queryEmbedding = model.predict(encodedQuery);
 
-    try {
-        const queryEmbedding = model.predict(queryTensor).arraySync();
+    let bestMatchIndex = -1;
+    let bestMatchScore = -Infinity;
 
-        let bestMatchIndex = -1;
-        let bestMatchScore = -Infinity;
-
-        for (let i = 0; i < qaEmbeddings.length; i++) {
-            const score = tf.losses.cosineDistance(tf.tensor1d(queryEmbedding), tf.tensor1d(qaEmbeddings[i]), 0).arraySync();
-            if (score > bestMatchScore) {
-                bestMatchScore = score;
-                bestMatchIndex = i;
-            }
+    for (let i = 0; i < qaEmbeddings.length; i++) {
+        const score = cosineSimilarity(queryEmbedding, tf.tensor(qaEmbeddings[i]));
+        if (score > bestMatchScore) {
+            bestMatchScore = score;
+            bestMatchIndex = i;
         }
-
-        queryTensor.dispose();
-
-        return bestMatchIndex !== -1 ? qaPairs[bestMatchIndex].answer : 'I am not sure how to respond to that.';
-    } catch (error) {
-        console.error('Error finding best answer:', error);
-        return 'An error occurred while processing your query.';
     }
+
+    encodedQuery.dispose();
+    queryEmbedding.dispose();
+
+    return bestMatchIndex !== -1 ? qaPairs[bestMatchIndex].answer : 'I am not sure how to respond to that.';
 }
 
-// Update the model with new data
+// Update the model
 async function updateModel() {
     if (trainingData.length === 0) {
-        console.log('No training data to update the model.');
         return;
     }
-
-    console.log('Updating model with new training data...');
-    const newQAPairs = trainingData.map(data => ({
-        question: data.id,
-        answer: data.feedback === 'up' ? 'Improved response based on feedback' : 'Adjusted response based on feedback'
-    }));
-
-    const allQAPairs = [...qaPairs, ...newQAPairs];
-    const sentences = allQAPairs.map(pair => pair.question);
-
-    const embeddings = await model.predict(tf.tensor(sentences)).array();
-    qaEmbeddings = embeddings;
-
+    // Add model update logic here if needed
     trainingData = [];
-    console.log('Model updated with new training data.');
 }
 
-// Handle WebSocket action messages
+// WebSocket action handler
 async function handleAction(data) {
     let response;
     switch (data.action) {
@@ -172,98 +165,55 @@ async function handleAction(data) {
     return response;
 }
 
-// Handle WebSocket message queries
+// WebSocket message handler
 async function handleMessage(data) {
     const currentQuery = data.message.toLowerCase();
-    const tokenizer = new natural.WordTokenizer(); // Correct instantiation
-    const tokens = tokenizer.tokenize(currentQuery);
-    const cleanedQuery = tokens.join(' ');
-
     previousQueries[data.id] = currentQuery;
 
-    const predefinedResponse = responses[cleanedQuery] || null;
+    const predefinedResponse = responses[currentQuery];
     return predefinedResponse || await findBestAnswer(currentQuery);
 }
 
-// Set up Express routes
+// API routes
 app.post('/api/askQHSEExpert', async (req, res) => {
     const { query } = req.body;
-
     try {
         if (!model) throw new Error('Model not loaded');
-        if (typeof query !== 'string') throw new Error('Query must be a string');
-
         const answer = await handleMessage({ message: query });
         res.json({ response: answer });
     } catch (error) {
-        console.error('Error processing query:', error.message);
         res.status(500).json({ error: 'Failed to process query' });
     }
 });
 
-app.get('/api/askQHSEExpert', (req, res) => {
-    res.status(405).send('GET method not allowed. Use POST method instead.');
-});
-
-app.get('/', (req, res) => {
-    res.send('QHSE Expert API is running');
-});
-
+// WebSocket server
 const server = app.listen(port, () => {
     console.log(`QHSE Expert app listening at http://localhost:${port}`);
 });
 
-// Set up WebSocket server with reconnection and heartbeat
 const wss = new WebSocket.Server({ server });
-
-function heartbeat() {
-    this.isAlive = true;
-}
-
-function checkHealth() {
-    wss.clients.forEach(client => {
-        if (!client.isAlive) {
-            client.terminate();
-        }
-        client.isAlive = false;
-        client.ping();
-    });
-}
 
 wss.on('connection', ws => {
     ws.isAlive = true;
-    ws.on('pong', heartbeat);
+
+    ws.on('pong', () => ws.isAlive = true);
 
     ws.on('message', async message => {
         try {
             const data = JSON.parse(message);
-
-            let response;
-            if (data.message) {
-                response = await handleMessage(data);
-            } else if (data.action) {
-                response = await handleAction(data);
-            }
-
+            const response = data.message ? await handleMessage(data) : await handleAction(data);
             ws.send(JSON.stringify({ id: data.id, response }));
         } catch (error) {
-            console.error('Error handling message:', error.message);
-            ws.send(JSON.stringify({ error: 'Failed to process request' }));
+            ws.send(JSON.stringify({ error: 'Failed to process message' }));
         }
     });
 });
 
-setInterval(checkHealth, 30000); // Check connection health every 30 seconds
+// Initialize server
+async function initializeServer() {
+    await downloadAndSaveModel();
+    await loadModel();
+    await prepareEmbeddings();
+}
 
-// Initialize the model and embeddings on server start
-(async () => {
-    try {
-        await downloadAndSaveModel();
-        await loadModel();
-        await prepareEmbeddings();
-        console.log('Server is ready to accept connections');
-    } catch (error) {
-        console.error('Failed to initialize the server:', error.message);
-        process.exit(1);
-    }
-})();
+initializeServer();
