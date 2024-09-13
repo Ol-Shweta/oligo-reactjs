@@ -65,3 +65,18 @@ Take a look in `TODO.md` for next steps you can try out in your new site!
 - Want more details about React on Glitch? We've got a [Help Center article](https://help.glitch.com/hc/en-us/articles/16287545215501-React-Projects) for you.
 - Need more help? [Check out our Help Center](https://help.glitch.com/) for answers to any common questions.
 - Ready to make it official? [Become a paid Glitch member](https://glitch.com/pricing) to boost your app with private sharing, more storage and memory, domains and more.
+
+## VSCode setup for first time
+npm install vite
+npm start
+
+## for backend server for first time
+npm install express
+npm start
+
+## Git commands
+git add .
+git commit -m "Changes Added"
+git push origin main
+git status
+
