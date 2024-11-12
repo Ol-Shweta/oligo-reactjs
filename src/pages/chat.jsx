@@ -87,11 +87,11 @@ const Chat = () => {
 
         try {
             // Ensure data has the expected structure
-            if (data && typeof data === 'object' && 'response' in data) {
-                const botMessage = { user: 'QHSE Expert', text: data.response };
+            if (data && typeof data === 'object' && 'message' in data) {
+                const botMessage = { user: 'QHSE Expert', text: data.message };
                 setMessages((prevMessages) => [...prevMessages, botMessage]);
-            } else {
-                // Advanced NLP processing or fallback logic
+            } else if (data && data.question) {
+                // Check if 'question' is defined and safely use it (in case you still expect this in other situations)
                 const question = data.question.toLowerCase();
 
                 if (question.includes('what is qhse')) {
@@ -102,6 +102,11 @@ const Chat = () => {
                     const errorMessage = { user: 'QHSE Expert', text: 'I\'m sorry, I didn\'t understand that question.' };
                     setMessages((prevMessages) => [...prevMessages, errorMessage]);
                 }
+            } else {
+                // Handle invalid data or message format
+                console.error('Received unexpected data format:', data);
+                const errorMessage = { user: 'QHSE Expert', text: 'Failed to process message' };
+                setMessages((prevMessages) => [...prevMessages, errorMessage]);
             }
         } catch (error) {
             console.error('Error processing message:', error);

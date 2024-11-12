@@ -11,6 +11,7 @@ import Contact from "../pages/contact";
 import PredictiveAnalytics from "../pages/predictiveanalytics";
 import TrainModel from "../pages/trainmodel";
 import Chat from '../pages/chat.jsx';
+import DataUpload from '../pages/dataupload.jsx';
 
 /**
 * The router is imported in app.jsx
@@ -30,5 +31,6 @@ export default () => (
         <Route path="/predictiveanalytics" component={PredictiveAnalytics} />
         <Route path="/trainmodel" component={TrainModel} />
         <Route path="/chat" component={Chat} />
+        <Route path="/dataupload" component={DataUpload} />
     </Switch>
 );

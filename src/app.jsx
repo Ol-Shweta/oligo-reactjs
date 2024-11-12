@@ -20,6 +20,8 @@ export default function App() {
           <Link href="/predictiveanalytics">Predictive Analytics</Link>
           <span className="divider">|</span>
           <Link href="/chat">Chat</Link>
+          <span className="divider">|</span>
+          <Link href="/dataupload">Data Upload</Link>
         </nav>
                   </div></div>
       </header>

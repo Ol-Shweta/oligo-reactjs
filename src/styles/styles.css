@@ -229,20 +229,22 @@ h2 {
 
 /* Global button styles */
 button {
-    padding: 0.75rem 1.5rem;
+    padding: 0.75rem 2rem;
     font-size: 1rem;
-    font-weight: bold;
+    font-weight: 600;
     color: #fff;
-    background-color: #373737;
+    background-color: #0091ce;
     border: none;
-    border-radius: 20px;
+    border-radius: 30px;
     cursor: pointer;
     margin: 1rem;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    text-transform: uppercase; /* To give a more modern feel */
 }
 
     button:hover {
-        background-color: #0091ce;
+        background-color: #007bb5;
+        transform: scale(1.05); /* Slightly enlarging on hover */
     }
 
     button.train-btn {
@@ -263,45 +265,65 @@ button {
 
 /* Specific styles for file input */
 input[type="file"] {
-    padding: 0.6rem 2rem 0.6rem 2rem;
+    padding: 0.8rem 2rem;
     font-size: 1rem;
     margin-bottom: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 20px;
+    border: 1px solid #ddd;
+    border-radius: 30px;
     cursor: pointer;
+    background-color: #f7f7f7; /* Lighter background for file input */
+    transition: background-color 0.3s ease;
 }
+
+    input[type="file"]:hover {
+        background-color: #e9ecef; /* Slightly darker on hover */
+    }
 
 /* Additional styles for prediction section */
 .predict-section {
     margin-top: 2rem;
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
     .predict-section input {
-        margin-right: 1rem;
-        padding: 0.5rem;
+        padding: 0.6rem 1rem;
         font-size: 1rem;
         border: 1px solid #ccc;
         border-radius: 4px;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
+        width: calc(100% - 2rem);
     }
 
+        .predict-section input:focus {
+            border-color: #0091ce;
+            outline: none;
+        }
+
+/* Prediction table */
 .prediction-table {
     width: 100%;
     border-collapse: collapse;
+    margin-top: 2rem;
 }
 
     .prediction-table th, .prediction-table td {
         border: 1px solid #ddd;
-        padding: 8px;
-    }
-
-    .prediction-table th {
-        background-color: #f2f2f2;
+        padding: 12px;
+        font-size: 1rem;
         text-align: center;
     }
 
-    .prediction-table tr:hover {
+    .prediction-table th {
         background-color: #f1f1f1;
+        color: #333;
+        font-weight: bold;
+    }
+
+    .prediction-table tr:hover {
+        background-color: #f5f5f5;
     }
 
     .prediction-table .danger {
@@ -312,76 +334,199 @@ input[type="file"] {
         background-color: #d4edda;
     }
 
-    .prediction-table td {
-        text-align: center;
-    }
+.charts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 20px;
+}
 
+.chart {
+    flex: 1 1 30%; /* Make each chart take 30% width on larger screens */
+    min-width: 250px;
+    max-width: 350px;
+}
 .chart-container {
     display: flex;
-    flex-direction: column; /* Align charts vertically */
-    align-items: center; /* Center charts horizontally */
-    justify-content: center; /* Center charts vertically */
-    width: 90%; /* Ensure the container is not too wide */
-    max-width: 1200px; /* Set a maximum width for better appearance */
-    margin: 20px auto; /* Center the container horizontally with margin */
-    padding: 30px; /* Add padding for inner spacing */
-    background-color: #ffffff; /* White background for contrast */
-    border-radius: 12px; /* Rounded corners for modern look */
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
-    transition: transform 0.2s; /* Smooth transition for hover effect */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 30px;
+    background-color: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
 }
 
     .chart-container:hover {
-        transform: scale(1.02); /* Slightly enlarge on hover for interactivity */
+        transform: scale(1.02);
     }
 
     .chart-container h2 {
-        font-family: 'HK Grotesk', sans-serif; /* Ensure consistent font */
-        font-size: 2rem; /* Larger font for the heading */
-        color: #0091ce; /* Use primary color for the heading */
-        margin-bottom: 30px; /* Space between title and charts */
-        text-align: center; /* Center align the heading */
+        font-family: 'Helvetica', sans-serif;
+        font-size: 2.2rem;
+        color: #0091ce;
+        margin-bottom: 30px;
+        text-align: center;
+        font-weight: 700;
     }
 
     .chart-container > div {
-        width: 100%; /* Each chart takes full width */
-        max-width: 400px; /* Set a maximum width for charts */
-        margin-bottom: 30px; /* Space between each chart */
+        width: 100%;
+        max-width: 500px;
+        margin-bottom: 30px;
     }
 
     .chart-container canvas {
-        width: 100%; /* Ensure canvas uses full width */
-        height: auto; /* Maintain aspect ratio */
-        border-radius: 8px; /* Slight rounding of chart corners */
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for charts */
-        transition: transform 0.2s; /* Smooth transition for hover effect */
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
     }
 
         .chart-container canvas:hover {
-            transform: scale(1.01); /* Slightly enlarge on hover for interactivity */
+            transform: scale(1.02);
         }
+/* Media query for smaller screens */
+@media (max-width: 768px) {
+    .charts {
+        flex-direction: column; /* Stack charts vertically on smaller screens */
+    }
 
+    .chart {
+        width: 100%; /* Make each chart take full width */
+        margin-bottom: 20px;
+    }
+}
 .container {
-    margin: 20px;
+    width: 90%;
+    margin: 0 auto;
+    padding: 20px;
 }
 
 .nav {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-evenly;
     padding: 1rem;
     background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 20px;
 }
 
     .nav a {
         color: #007bff;
+        font-size: 1.1rem;
+        font-weight: 600;
         text-decoration: none;
-        padding: 0.5rem 1rem;
+        padding: 0.5rem 1.5rem;
+        transition: color 0.3s ease;
     }
 
         .nav a:hover {
+            color: #0056b3;
             text-decoration: underline;
         }
+
+/* Make the dashboard feel more interactive */
+.dashboard-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 40px 0;
+    padding: 20px;
+    background-color: #fafafa;
+    border-radius: 20px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.05);
+}
+
+    .dashboard-container h2 {
+        font-size: 2rem;
+        color: #333;
+        margin-bottom: 20px;
+    }
+
+.dashboard-cards {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    max-width: 1100px;
+    margin: 20px 0;
+    gap: 1.5rem;
+}
+
+.dashboard-card {
+    background-color: #fff;
+    padding: 20px;
+    width: 250px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .dashboard-card h3 {
+        font-size: 1.5rem;
+        color: #0091ce;
+        margin-bottom: 1rem;
+    }
+
+    .dashboard-card p {
+        font-size: 1rem;
+        color: #333;
+    }
+
+    .dashboard-card .value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #28a745;
+    }
+
+/* Loading spinner */
+.spinner {
+    margin: 20px auto;
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #0091ce;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .dashboard-cards {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .nav {
+        flex-direction: column;
+        align-items: center;
+    }
+
+        .nav a {
+            margin: 10px 0;
+        }
+}
 
 /* Chat Page Specific Styles */
 .chat-container {
@@ -690,7 +835,7 @@ input[type="file"] {
         display: -moz-inline-stack;
         display: inline-block;
         zoom: 1;
-        *display: inline;
+        display: inline;
     }
 
         #fh5co-services .icon:before {

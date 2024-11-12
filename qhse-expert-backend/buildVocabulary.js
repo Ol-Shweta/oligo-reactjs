@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const stopword = require('stopword');  // Import the stopword library
 
 // Paths to the required files
 const qaPairsPath = path.join(__dirname, 'qaPairs.json');
@@ -20,8 +21,15 @@ let index = 1;
 
 // Build the vocabulary from the questions in qaPairs.json
 qaPairs.forEach(pair => {
-    const tokens = pair.question.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").split(/\s+/); // Improved tokenization
-    tokens.forEach(token => {
+    // Tokenize the question and filter stop words using the stopword library
+    const tokens = pair.question.toLowerCase()
+        .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")  // Remove punctuation
+        .split(/\s+/); // Split by whitespace
+
+    // Remove stop words using the stopword library
+    const filteredTokens = stopword.removeStopwords(tokens);
+
+    filteredTokens.forEach(token => {
         if (token && !tokenToIndex[token]) { // Avoid empty tokens
             tokenToIndex[token] = index++; // Assign a unique index to each token
         }

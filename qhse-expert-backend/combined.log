@@ -1,0 +1,4 @@
+{"level":"info","message":"QHSE Expert app running on port 5000"}
+{"level":"info","message":"Model loaded successfully."}
+{"level":"info","message":"Embeddings loaded successfully."}
+{"level":"info","message":"Received SIGINT. Gracefully shutting down."}

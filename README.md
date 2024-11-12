@@ -80,3 +80,6 @@ git commit -m "Changes Added"
 git push origin main
 git status
 
+
+
+ python bert_embeddings.py qaPairs.json

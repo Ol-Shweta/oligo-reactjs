@@ -1,7 +1,13 @@
 import sys
 import json
+import spacy
 import torch
 from transformers import BertTokenizer, BertModel
+
+# Load spaCy model for Named Entity Recognition (NER)
+# nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_md")  # Or "en_core_web_lg"
+
 
 def generate_embeddings(qa_pairs):
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -18,6 +24,20 @@ def generate_embeddings(qa_pairs):
 
     return embeddings
 
+def extract_entities(text):
+    """
+    Extract named entities from a text using spaCy.
+    This will return a list of entities with their labels.
+    """
+    doc = nlp(text)
+    entities = [(ent.text, ent.label_) for ent in doc.ents]
+    
+    # Print detected entities for debugging
+    print(f"Entities found in '{text}': {entities}")
+    
+    return entities
+
+
 def main():
     input_path = sys.argv[1]
     try:
@@ -26,8 +46,15 @@ def main():
         
         embeddings = generate_embeddings(qa_pairs)
         
-        # Output the embeddings to stdout for the Node.js script to capture
-        print(json.dumps(embeddings))
+        # Extract entities from both questions and answers
+        for pair in qa_pairs:
+            question = pair['question']
+            answer = pair['answer']
+            pair['question_entities'] = extract_entities(question)
+            pair['answer_entities'] = extract_entities(answer)
+
+        # Output the embeddings and entities to stdout for the Node.js script to capture
+        print(json.dumps(qa_pairs))
     
     except Exception as e:
         print(f"Error processing embeddings: {e}", file=sys.stderr)
