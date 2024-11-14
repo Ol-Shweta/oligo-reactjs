@@ -287,6 +287,8 @@ app.post('/api/askQHSEExpert', async (req, res) => {
 // POST endpoint to handle file upload and prediction
 app.post('/api/predict', upload.single('file'), async (req, res) => {
     const file = req.file; // File received from the client
+    console.log("File: ", file);
+  
 
     // Process the file (e.g., read it, run prediction model)
     try {
