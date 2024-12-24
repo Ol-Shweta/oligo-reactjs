@@ -1,24 +1,29 @@
 require('dotenv').config(); // Load environment variables from .env file
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const tf = require('@tensorflow/tfjs-node');
-const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
-const axios = require('axios');
-const natural = require('natural');
-const helmet = require('helmet'); // Adds security headers
-const compression = require('compression'); // Enables GZIP compression
-const morgan = require('morgan'); // HTTP request logger
-const rateLimit = require('express-rate-limit'); // Rate limiting for preventing abuse
-const http = require('http');
-const https = require('https');
 const multer = require('multer');
+const compression = require('compression');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const http = require('http'); // Add this line to import http
+const https = require('https'); // Add this line to import https
+const WebSocket = require('ws');
+const axios = require('axios');
 const XLSX = require('xlsx');
+
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+console.log(`Server will run on port: ${process.env.PORT}`);
+console.log(`CORS Origin: ${process.env.CORS_ORIGIN}`);
+console.log(`HTTPS Enabled: ${process.env.HTTPS_ENABLED}`);
 
 // Multer setup for file upload
 const storage = multer.memoryStorage();
@@ -26,17 +31,13 @@ const upload = multer({ storage });
 
 // Middleware setup
 app.use(helmet()); // Adds security headers
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' })); // CORS for security in production
-//app.use(bodyParser.json({ limit: '50mb' })); // Increased the body size limit to 50mb for larger model weights
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' })); // CORS for security
+app.use(bodyParser.json({ limit: '100mb' })); // Increased the body size limit to 50mb for larger model weights
 app.use(compression()); // Enable GZIP compression
-app.use(morgan('combined')); // HTTP request logger for production
-app.use('/models/chat', express.static(path.join(__dirname, 'models', 'chat'))); // Serve chat model
-app.use('/models/predictive', express.static(path.join(__dirname, 'models', 'predictive'))); // Serve predictive model
-app.set('trust proxy', 1); // Trust first proxy if behind a proxy
-
-// Middleware to parse JSON and raw data
-app.use(express.json({ limit: '50mb' }));
-app.use(express.raw({ type: 'application/octet-stream', limit: '50mb' })); // Parse binary data
+app.use(morgan('combined')); // HTTP request logger
+app.use(express.json({ limit: '100mb' }));
+app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' })); // Parse binary data
+app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting to prevent abuse
 const limiter = rateLimit({
@@ -259,36 +260,59 @@ async function handleMessage(data) {
     return predefinedResponse || await findBestAnswer(currentQuery);
 }
 
-// save model
-app.post('/save-model', (req, res) => {
-    const { modelJson, weights } = req.body;
-
-    if (!modelJson || !weights) {
-        return res.status(400).json({ error: 'Missing modelJson or weights in the request.' });
-    }
-
+// Route to save the model and weights
+app.post('/savemodel', async (req, res) => {
     try {
-        const modelDir = path.join(__dirname, 'models', 'predictive');
-        const modelPath = path.join(modelDir, 'model.json');
-        const weightsPath = path.join(modelDir, 'weights.bin');
+        const { modelJson, weightsBuffer } = req.body;
 
-        if (!fs.existsSync(modelDir)) {
-            fs.mkdirSync(modelDir, { recursive: true });
+        // Validate request payload
+        if (!modelJson || !weightsBuffer) {
+            return res.status(400).json({ message: 'Missing model or weights data' });
         }
 
-        let parsedModelJson = typeof modelJson === 'string' ? JSON.parse(modelJson) : modelJson;
-        fs.writeFileSync(modelPath, JSON.stringify(parsedModelJson, null, 2));
+        // Paths for saving the model and weights
+        const modelDir = path.join(__dirname, 'models', 'predictive');
+        const modelJsonPath = path.join(modelDir, 'model.json');
+        const weightsBinPath = path.join(modelDir, 'weights.bin');
 
-        const decodedWeights = Uint8Array.from(atob(weights), c => c.charCodeAt(0));
-        fs.writeFileSync(weightsPath, Buffer.from(decodedWeights));
-        console.log('Model and weights saved successfully.');
+        // Ensure the model directory exists
+        fs.mkdirSync(modelDir, { recursive: true });
 
-        return res.status(200).json({ message: 'Model and weights saved successfully.' });
+        // Parse the model JSON to inject weightsManifest
+        const modelData = JSON.parse(modelJson);
+
+        // Generate the weightsManifest dynamically
+        const weightsManifest = [
+            {
+                paths: ['weights.bin'],
+                weights: Object.keys(modelData.modelTopology.weights)
+                    .map((weightName) => ({
+                        name: weightName,
+                        shape: modelData.modelTopology.weights[weightName].shape,
+                        dtype: modelData.modelTopology.weights[weightName].dtype,
+                    })),
+            },
+        ];
+        console.log('weightsManifest in server = ', weightsManifest);
+        // Embed the weightsManifest into the model JSON
+        modelData.weightsManifest = weightsManifest;
+        console.log('model data = ', modelData);
+
+        // Save the updated model JSON
+        fs.writeFileSync(modelJsonPath, JSON.stringify(modelData, null, 2), 'utf8');
+
+        // Decode and save weights binary data
+        const weightsBufferDecoded = Buffer.from(weightsBuffer);
+        fs.writeFileSync(weightsBinPath, weightsBufferDecoded);
+
+        console.log('Model JSON and weights saved successfully!');
+        res.status(200).json({ message: 'Model saved successfully!' });
     } catch (error) {
-        console.error('Error saving model:', error);
-        return res.status(500).json({ error: 'Failed to save model.', details: error.message });
+        console.error('Error saving model:', error.message);
+        res.status(500).json({ message: 'Failed to save the model', error: error.message });
     }
 });
+
 
 // PredictiveAnalytics API routes
 app.get('/api/predictive/model', async (req, res) => {
@@ -330,6 +354,7 @@ app.post('/api/predict', upload.single('file'), async (req, res) => {
 
         // Read and preprocess the file data
         const data = await readExcelFile(file);
+        console.log('Excel File ', file);
         const inputTensor = preprocessData(data);
 
         // Load the model
@@ -374,29 +399,30 @@ function readExcelFile(file) {
             const workbook = XLSX.read(file.buffer, { type: 'buffer' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-            // Parse the sheet to JSON
-            const jsonData = XLSX.utils.sheet_to_json(sheet, {
-                header: [
-                    's_no', 'date', 'location', 'observation', 'category',
-                    'unsafe_type', 'rectification', 'action_by',
-                    'reported_by', 'closed_date', 'status'
-                ],
-                defval: '' // Ensure empty cells are not undefined
-            });
+            // Parse the sheet to JSON without relying on headers
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-            // Clean and structure the data
-            const cleanedData = jsonData.map((row, index) => ({
-                s_no: row.s_no || index + 1, // Default to index+1 if missing
-                date: row.date || 'Unknown Date',
-                location: row.location || 'Unknown Location',
-                observation: row.observation || 'No Observation Provided',
-                category: row.category || 'Uncategorized',
-                unsafe_type: row.unsafe_type || 'Not Specified',
-                rectification: row.rectification || 'No Action Provided',
-                action_by: row.action_by || 'Unknown Person',
-                reported_by: row.reported_by || 'Unknown Reporter',
-                closed_date: row.closed_date || 'Not Closed',
-                status: row.status || 'Pending'
+            if (jsonData.length < 2) {
+                throw new Error('The Excel file must contain at least one row of data.');
+            }
+
+            // Remove the first row if it is a header
+            const isHeader = jsonData[0].some(cell => typeof cell === 'string');
+            const dataRows = isHeader ? jsonData.slice(1) : jsonData;
+
+            // Map rows to objects with default headers
+            const cleanedData = dataRows.map((row, index) => ({
+                s_no: row[0] || index + 1,
+                date: row[1] || 'Unknown Date',
+                location: row[2] || 'Unknown Location',
+                observation: row[3] || 'No Observation Provided',
+                category: row[4] || 'Uncategorized',
+                unsafe_type: row[5] || 'Not Specified',
+                rectification: row[6] || 'No Action Provided',
+                action_by: row[7] || 'Unknown Person',
+                reported_by: row[8] || 'Unknown Reporter',
+                closed_date: row[9] || 'Not Closed',
+                status: row[10] || 'Pending'
             }));
 
             resolve(cleanedData);
@@ -406,152 +432,151 @@ function readExcelFile(file) {
         }
     });
 }
-
-
+// Function to preprocess the data
 function preprocessData(data) {
     try {
-
-        if (!Array.isArray(data) || data.length < 2) {
+        if (!Array.isArray(data) || data.length === 0) {
             throw new Error('Invalid or insufficient data provided.');
         }
 
-        // Extract headers and normalize them
-        const headers = data[0];
-        const normalizedHeaders = Object.keys(data[0]).reduce((acc, key) => {
-            const normalizedKey = key.trim().toLowerCase();
-            acc[normalizedKey] = key;
-            return acc;
-        }, {});
-        console.log("Normalized Headers Mapping:", normalizedHeaders);
-
-        const observationKey = normalizedHeaders['safety observation / condition / activity'] ||
-            normalizedHeaders['observation'] ||
-            normalizedHeaders['activity'];
-
-        const dateKey = normalizedHeaders['date'] ||
-            normalizedHeaders['observation date'] ||
-            normalizedHeaders['reported date'];
-
-        const categoryKey = normalizedHeaders['category'] ||
-            normalizedHeaders['observation category'];
-
-        if (!observationKey || !dateKey || !categoryKey) {
-            throw new Error('Required headers are missing in the data after normalization.');
-        }
-
-        // Convert Excel serialized date to a JavaScript Date object
-        const excelDateToJSDate = (serial) => {
-            const excelEpoch = new Date(1899, 11, 30).getTime(); // Excel's epoch (base date)
-            const dayMilliseconds = 86400000; // 24 * 60 * 60 * 1000
-            return new Date(excelEpoch + serial * dayMilliseconds);
-        };
-
-        // Filter and process valid rows
-        const validData = data.slice(1).filter(row => {
-            const observation = row[observationKey];
-            const date = row[dateKey];
-            return observation && observation.trim() !== '' && date !== undefined && !isNaN(date);
-        });
+        // Filter valid rows
+        const validData = data.filter(row => row.observation && row.date);
 
         if (validData.length === 0) {
-            throw new Error('No valid data rows found');
+            throw new Error('No valid data rows found.');
         }
 
-        console.log("Valid Data Rows:", validData); // Log valid rows for debugging
+        // Encode categorical data
+        const categories = [...new Set(validData.map(row => row.category || 'Uncategorized'))];
+        const categoryIndex = (row) => categories.indexOf(row.category || 'Uncategorized');
 
-        const categories = [...new Set(validData.map(row => row[categoryKey] || ''))];
-        const categoryIndex = (row) => categories.indexOf(row[categoryKey] || '');
-
-        // Encode text into numerical values (example with character codes)
-        const encodeText = (text) => {
-            return text.split('').map(char => char.charCodeAt(0));
+        // Helper function: Encode text to numeric and pad/truncate to fixed length
+        const encodeText = (text, maxLength) => {
+            const encoded = text
+                .split('')
+                .map(char => char.charCodeAt(0)) // Convert to character codes
+                .slice(0, maxLength); // Truncate if longer than maxLength
+            return [...encoded, ...Array(maxLength - encoded.length).fill(0)]; // Pad with 0s if shorter
         };
 
-        // Process each row into a feature vector
+        // Feature-specific lengths
+        const maxObservationLength = 50; // Observation text length
+        const maxLocationLength = 20; // Location text length
+
         const features = validData.map(row => {
-            const observation = encodeText(row[observationKey] || '');
-            const jsDate = excelDateToJSDate(row[dateKey]);
-            const dateComponents = [jsDate.getFullYear(), jsDate.getMonth() + 1, jsDate.getDate()];
-            const categoryEncoded = categoryIndex(row);
+            const dateComponents = row.date.split('-').map(Number); // Assuming dd-mm-yyyy format
+            const observationEncoded = encodeText(row.observation, maxObservationLength);
+            const locationEncoded = encodeText(row.location, maxLocationLength);
+            const categoryEncoded = [categoryIndex(row)]; // Ensure this is an array
 
-            return [
-                ...dateComponents, // Year, Month, Day
-                ...observation, // Encoded observation
-                categoryEncoded // Category index
+            // Combine features into a fixed-length vector
+            const combinedFeatures = [
+                ...dateComponents, // Day, Month, Year
+                ...observationEncoded, // Encoded observation
+                ...locationEncoded, // Encoded location
+                ...categoryEncoded // Category index
             ];
-        });
 
-        // Ensure consistent feature vector length
-        const expectedShape = 138; // Adjust based on model requirements
-        const paddedFeatures = features.map(row => {
-            if (row.length < expectedShape) {
-                return [...row, ...Array(expectedShape - row.length).fill(0)];
+            // Ensure the vector is exactly 78 elements
+            if (combinedFeatures.length < 78) {
+                // Pad with zeros if too short
+                return [...combinedFeatures, ...Array(78 - combinedFeatures.length).fill(0)];
+            } else if (combinedFeatures.length > 78) {
+                // Truncate if too long
+                return combinedFeatures.slice(0, 78);
             }
-            return row.slice(0, expectedShape);
+
+            return combinedFeatures;
         });
 
-        const numRows = paddedFeatures.length;
-        const numCols = paddedFeatures[0].length;
-        return tf.tensor2d(paddedFeatures, [numRows, numCols]);
+        const numRows = features.length;
+        const numCols = features[0].length;
+
+        // Validate the shape
+        if (numCols !== 78) {
+            throw new Error(`Feature vector length mismatch. Expected 78, got ${numCols}`);
+        }
+
+        return tf.tensor2d(features, [numRows, numCols]);
     } catch (error) {
-        console.error("Error preprocessing data:", error);
+        console.error('Error preprocessing data:', error);
         throw error;
     }
 }
 
-// Generate Chart Data
 function generateChartData(predictions) {
-    const unsafeActCounts = { High: 0, Medium: 0, Low: 0 };
-    const unsafeConditionCounts = { High: 0, Medium: 0, Low: 0 };
-    const locationCounts = {};
+    // Log predictions to verify data structure
+    console.log('Predictions:', predictions);
 
-    predictions.forEach(({ observation, prediction, severity, location }) => {
-        // Safeguard for missing severity
-        const severityLevel = severity || 'Low';
+    // Initialize data structure
+    const chartData = {
+        UnsafeAct: {
+            labels: [],
+            data: [],
+        },
+        categories: {}, // Category breakdown by severity
+        severityDistribution: { High: 0, Medium: 0, Low: 0 }, // Total severity distribution
+        locations: {}, // Safety conditions at each location
+    };
 
-        // Update counts for Unsafe Acts and Unsafe Conditions
-        if (prediction === 'Unsafe Condition') {
-            unsafeConditionCounts[severityLevel] += 1;
-        } else if (prediction === 'Unsafe Act') {
-            unsafeActCounts[severityLevel] += 1;
+    // Temporary object for UnsafeAct counts
+    const unsafeActCounts = {};
+
+    // Process predictions to aggregate data
+    predictions.forEach(prediction => {
+        const { prediction: predictionType, severity, location, observation } = prediction;
+
+        // Unsafe Act aggregation
+        if (predictionType === 'Unsafe Condition') {
+            if (!unsafeActCounts[observation]) {
+                unsafeActCounts[observation] = 0;
+            }
+            unsafeActCounts[observation]++;
         }
 
-        // Update location-specific counts (handle undefined or missing locations)
-        const normalizedLocation = location ? location.trim() : 'Unknown Location';
-        locationCounts[normalizedLocation] = (locationCounts[normalizedLocation] || 0) + 1;
+        // Aggregate by category and severity
+        if (!chartData.categories[predictionType]) {
+            chartData.categories[predictionType] = { High: 0, Medium: 0, Low: 0 };
+        }
+        chartData.categories[predictionType][severity]++;
+
+        // Aggregate total severity distribution
+        chartData.severityDistribution[severity]++;
+
+        // Aggregate by location and condition type
+        if (!chartData.locations[location]) {
+            chartData.locations[location] = { 'Safe Condition': 0, 'Unsafe Condition': 0 };
+        }
+        chartData.locations[location][predictionType]++;
     });
 
-    // Return chart-ready data
-    return {
-        UnsafeAct: {
-            datasets: [
-                {
-                    data: Object.values(unsafeActCounts),
-                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'],
-                    label: 'Unsafe Act Distribution'
-                }
-            ]
-        },
-        UnsafeCondition: {
-            datasets: [
-                {
-                    data: Object.values(unsafeConditionCounts),
-                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'],
-                    label: 'Unsafe Condition Distribution'
-                }
-            ]
-        },
-        Location: {
-            datasets: [
-                {
-                    data: Object.values(locationCounts),
-                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'],
-                    label: 'Location Distribution'
-                }
-            ]
-        }
-    };
+    // Convert UnsafeAct counts to labels and data arrays
+    chartData.UnsafeAct.labels = Object.keys(unsafeActCounts);
+    chartData.UnsafeAct.data = Object.values(unsafeActCounts);
+
+    // Format data for other charts
+    chartData.categoryData = Object.entries(chartData.categories).map(([category, severities]) => ({
+        category,
+        ...severities, // Includes counts for High, Medium, Low
+    }));
+
+    chartData.severityData = Object.entries(chartData.severityDistribution).map(([severity, count]) => ({
+        severity,
+        count,
+    }));
+
+    chartData.locationData = Object.entries(chartData.locations).map(([location, conditions]) => ({
+        location,
+        safe: conditions['Safe Condition'],
+        unsafe: conditions['Unsafe Condition'],
+    }));
+
+    console.log('Chart Data:', chartData); // Log chart data to verify
+
+    return chartData;
 }
+
+
 // Load TensorFlow model
 async function loadModels(modelType) {
     try {

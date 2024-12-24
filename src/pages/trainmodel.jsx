@@ -5,10 +5,9 @@ import * as XLSX from 'xlsx';
 const TrainModel = () => {
     const [trainFile, setTrainFile] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [trainingProgress, setTrainingProgress] = useState({ epoch: 0, accuracy: 0 });
+    const [trainingProgress, setTrainingProgress] = useState({ epoch: 0, loss: 0, accuracy: 0 });
     const [errorMessage, setErrorMessage] = useState('');
 
-    // Utility: Read and preprocess data from an Excel file
     const loadAndPreprocessData = async (file) => {
         try {
             const data = await file.arrayBuffer();
@@ -18,18 +17,9 @@ const TrainModel = () => {
 
             if (!jsonData.length) throw new Error('Excel file is empty or improperly formatted.');
 
-            const headers = Object.keys(jsonData[0]);
-            const requiredFields = [
-                'Date',
-                'Location',
-                'Safety Observation / Condition / Activity',
-                'Category',
-                'Unsafe Act / Unsafe Condition',
-            ];
-            const missingFields = requiredFields.filter(field => !headers.includes(field));
-            if (missingFields.length > 0) {
-                throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-            }
+            const requiredFields = ['Date', 'Location', 'Safety Observation / Condition / Activity', 'Category', 'Unsafe Act / Unsafe Condition'];
+            const missingFields = requiredFields.filter(field => !Object.keys(jsonData[0]).includes(field));
+            if (missingFields.length > 0) throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
 
             return preprocessData(jsonData);
         } catch (error) {
@@ -40,35 +30,38 @@ const TrainModel = () => {
     };
 
     const preprocessData = (data) => {
-        const uniqueCategories = Array.from(new Set(data.map(row => row['Category'])));
-        const uniqueLocations = Array.from(new Set(data.map(row => row['Location'])));
+        try {
+            const uniqueCategories = Array.from(new Set(data.map(row => row['Category'] || '')));
+            const uniqueLocations = Array.from(new Set(data.map(row => row['Location'] || '')));
 
-        const encodeCategory = category => uniqueCategories.map(cat => (cat === category ? 1 : 0));
-        const encodeLocation = location => uniqueLocations.map(loc => (loc === location ? 1 : 0));
+            const encodeCategory = category => uniqueCategories.map(cat => (cat === category ? 1 : 0));
+            const encodeLocation = location => uniqueLocations.map(loc => (loc === location ? 1 : 0));
 
-        const observations = data.map(row => encodeText(row['Safety Observation / Condition / Activity']));
-        const features = data.map((row, index) => [
-            ...encodeDate(row['Date']),
-            ...encodeLocation(row['Location']),
-            ...observations[index],
-            ...encodeCategory(row['Category']),
-        ]);
-        const labels = data.map(row => (row['Unsafe Act / Unsafe Condition'] === 'Unsafe Condition' ? 1 : 0));
+            const features = data.map(row => [
+                ...encodeDate(row['Date'] || ''),
+                ...encodeLocation(row['Location'] || ''),
+                ...encodeText(row['Safety Observation / Condition / Activity'] || ''),
+                ...encodeCategory(row['Category'] || ''),
+            ]);
 
-        return { features: tf.tensor2d(features), labels: tf.tensor1d(labels, 'int32') };
+            const labels = data.map(row => (row['Unsafe Act / Unsafe Condition'] === 'Unsafe Condition' ? 1 : 0));
+
+            return {
+                features: tf.tensor2d(features, [features.length, features[0].length], 'float32'),
+                labels: tf.tensor1d(labels, 'int32'),
+            };
+        } catch (error) {
+            throw new Error(`Preprocessing Error: ${error.message}`);
+        }
     };
 
     const encodeDate = (date) => {
         try {
-            if (typeof date === 'number') {
-                const excelBaseDate = new Date(1899, 11, 30);
-                const jsDate = new Date(excelBaseDate.getTime() + (date - 1) * 86400000);
-                date = jsDate.toISOString().split('T')[0];
-            }
             const [year, month, day] = date.split(/[-/]/).map(Number);
-            return [year, Math.floor((month - 1) / 3) + 1, month, day];
+            return [year, month, day];
         } catch {
-            return [0, 0, 0, 0]; // Default encoding for invalid dates
+            console.error(`Invalid date: ${date}`);
+            return [0, 0, 0];
         }
     };
 
@@ -79,135 +72,108 @@ const TrainModel = () => {
 
     const createModel = (inputShape) => {
         const model = tf.sequential();
-        model.add(tf.layers.dense({ units: 128, activation: 'relu', inputShape }));
+
+        // Input Layer
+        model.add(tf.layers.dense({ units: 256, activation: 'relu', inputShape }));
+        model.add(tf.layers.batchNormalization());
+        model.add(tf.layers.dropout({ rate: 0.4 }));
+
+        // Hidden Layers
+        model.add(tf.layers.dense({
+            units: 128,
+            activation: 'relu',
+            kernelRegularizer: tf.regularizers.l1l2({ l2: 0.01 }) // Corrected here
+        }));
+        model.add(tf.layers.batchNormalization());
+        model.add(tf.layers.dropout({ rate: 0.4 }));
+
+        model.add(tf.layers.dense({
+            units: 64,
+            activation: 'relu',
+            kernelRegularizer: tf.regularizers.l1l2({ l2: 0.01 }) // Corrected here
+        }));
+        model.add(tf.layers.batchNormalization());
         model.add(tf.layers.dropout({ rate: 0.3 }));
-        model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-        model.add(tf.layers.dropout({ rate: 0.3 }));
+
+        // Output Layer
         model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
-        model.compile({ optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy'] });
+
+        // Compile the model
+        model.compile({
+            optimizer: tf.train.adam(),
+            loss: 'binaryCrossentropy',
+            metrics: ['accuracy'],
+        });
+
         return model;
     };
-
-    const trainModel = async (data) => {
+    const trainAndSaveModel = async (data) => {
         try {
-            setErrorMessage('');
-            const { features, labels } = data;
+            const model = createModel([data.features.shape[1]]);
 
-            const model = createModel([features.shape[1]]);
-            await model.fit(features, labels, {
-                epochs: 50,
+            // Custom callback for tracking training progress
+            class TrainingProgressCallback extends tf.Callback {
+                async onEpochEnd(epoch, logs) {
+                    console.log(`Epoch: ${epoch + 1}, Loss: ${logs.loss}, Accuracy: ${logs.acc}`);
+                    setTrainingProgress({
+                        epoch: epoch + 1,
+                        loss: logs.loss.toFixed(4),
+                        accuracy: (logs.acc * 100).toFixed(2),
+                    });
+                }
+            }
+
+            // Use both built-in and custom callbacks
+            const callbacks = [
+                tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: 5 }), // Early stopping
+                new TrainingProgressCallback(), // Custom progress tracker
+            ];
+
+            // Train the model
+            await model.fit(data.features, data.labels, {
+                epochs: 100,
                 batchSize: 32,
                 validationSplit: 0.2,
-                callbacks: {
-                    onEpochEnd: (epoch, logs) => {
-                        setTrainingProgress({ epoch: epoch + 1, accuracy: logs.acc });
-                    },
-                },
+                classWeight: { 0: 1, 1: 3 }, // Adjust for imbalance
+                callbacks,
             });
 
-            // Get the model weights
-            const weightData = await tf.io.encodeWeights(model.getWeights());
-
-            // Model artifacts for saving
-            const modelArtifacts = {
-                modelTopology: model.toJSON(),
-                weightSpecs: model.getWeights().map(weight => ({
-                    name: weight.name,
-                    shape: weight.shape,
-                    dtype: weight.dtype
-                })),
-                weightData: weightData[0]
-            };
-
-            console.log('Model artifacts:', modelArtifacts);
-
-            const modelJson = modelArtifacts.modelTopology;
-            const weightsManifest = modelArtifacts.weightSpecs;
-            const weightsData = modelArtifacts.weightData;
-
-            if (!modelJson || !weightsManifest || !weightsData) {
-                throw new Error('Model saving failed: Missing model artifacts');
-            }
-
-            // Combine modelJson and weightsManifest
-            const fullModelJson = {
-                modelTopology: modelJson,
-                weightsManifest: [{ paths: ['weights.bin'], weights: weightsManifest }]
-            };
-
-            console.log('Full Model JSON:', fullModelJson);
-            console.log('Weights Data:', weightsData);
-
-            await saveModelToServer({ modelJson: fullModelJson, weights: weightsData });
-
-            alert('Model training completed and saved.');
+            // Save the model
+            await model.save('downloads://model');
+            alert('Model saved successfully to your local system!');
         } catch (error) {
             setErrorMessage(`Training Error: ${error.message}`);
-            console.error('Training error:', error);
         } finally {
             setIsLoading(false);
-            tf.dispose([data.features, data.labels]);
+            tf.dispose([data.features, data.labels]); // Cleanup
         }
     };
 
-    const saveModelToServer = async ({ modelJson, weights }) => {
-        try {
-            console.log('Sending to server:', { modelJson, weights });
 
-            const base64Weights = btoa(String.fromCharCode(...new Uint8Array(weights)));
-            const response = await fetch('http://localhost:5000/save-model', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ modelJson, weights: base64Weights }),
-            });
-
-            const responseData = await response.json();
-            if (!response.ok) {
-                throw new Error(responseData.error || `Server Error: ${response.status}`);
-            }
-            console.log(responseData.message || 'Model saved successfully.');
-        } catch (error) {
-            console.error('Error saving model to server:', error.message);
-            throw error;
-        }
-    };
 
     const handleTrain = async () => {
         if (!trainFile) {
             alert('Please upload a file first.');
             return;
         }
+
         setIsLoading(true);
         try {
             const data = await loadAndPreprocessData(trainFile);
-            await trainModel(data);
+            await trainAndSaveModel(data);
         } catch (error) {
-            setErrorMessage(`Training Error: ${error.message}`);
+            console.error('Training error:', error);
         }
     };
 
     return (
         <div className="container">
             <h1>Train Model</h1>
-            <div>
-                <input
-                    type="file"
-                    accept=".xlsx"
-                    onChange={(e) => setTrainFile(e.target.files[0])}
-                    disabled={isLoading}
-                />
-                <button onClick={handleTrain} disabled={isLoading}>
-                    {isLoading ? 'Training in Progress...' : 'Train Model'}
-                </button>
-            </div>
-            {isLoading && (
-                <div>
-                    <p>Epoch: {trainingProgress.epoch}</p>
-                    <p>Accuracy: {(trainingProgress.accuracy * 100).toFixed(2)}%</p>
-                </div>
-            )}
+            <input type="file" accept=".xlsx" onChange={(e) => setTrainFile(e.target.files[0])} disabled={isLoading} />
+            <button onClick={handleTrain} disabled={isLoading}>
+                {isLoading ? 'Training in Progress...' : 'Train Model'}
+            </button>
+            {isLoading && <p>Epoch: {trainingProgress.epoch}, Loss: {trainingProgress.loss}, Accuracy: {trainingProgress.accuracy}%</p>}
             {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
         </div>
     );

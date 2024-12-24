@@ -346,6 +346,7 @@ input[type="file"] {
     min-width: 250px;
     max-width: 350px;
 }
+
 .chart-container {
     display: flex;
     flex-direction: column;
@@ -391,6 +392,7 @@ input[type="file"] {
         .chart-container canvas:hover {
             transform: scale(1.02);
         }
+
 /* Media query for smaller screens */
 @media (max-width: 768px) {
     .charts {
@@ -402,6 +404,7 @@ input[type="file"] {
         margin-bottom: 20px;
     }
 }
+
 .container {
     width: 90%;
     margin: 0 auto;
