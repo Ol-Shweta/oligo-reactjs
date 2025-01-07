@@ -48,10 +48,11 @@ const Chat = () => {
                 processMessage(data);
             } catch (error) {
                 console.error('Error handling WebSocket message:', error);
-                const errorMessage = { user: 'QHSE Expert', text: 'Error processing response' };
+                const errorMessage = { user: 'QHSE Expert', text: 'I encountered an issue while processing your request. Could you rephrase it?' };
                 setMessages((prevMessages) => [...prevMessages, errorMessage]);
             }
         };
+
 
         socketRef.current.onclose = () => {
             console.log('WebSocket disconnected');

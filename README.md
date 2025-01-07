@@ -81,5 +81,6 @@ git push origin main
 git status
 
 
-
+ node buildVocabulary.js
  python bert_embeddings.py qaPairs.json
+ node trainchat.js

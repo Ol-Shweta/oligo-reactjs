@@ -166,12 +166,26 @@ function loadTokenToIndex() {
     }
 }
 
+// Function to sanitize text data 
+function sanitizeText(text) {
+    if (!text || typeof text !== 'string') {
+        return '';
+    } // Remove unwanted special characters but keep meaningful ones like question marks 
+    return text.replace(/[^\w\s?]/gi, '');
+}
+
 // Function to encode text data into numbers using tokenizer
 function encodeText(text) {
     // Check if the text is undefined, null, or not a string, and handle it
-    if (!text || typeof text !== 'string') {
-        console.warn('Invalid or missing observation:', text);  // Log the issue
-        return tf.tensor2d([[0, 0, 0, 0, 0, 0, 0]]);  // Return a tensor with zeroes if text is invalid
+  //  if (!text || typeof text !== 'string') {
+   //     console.warn('Invalid or missing observation:', text);  // Log the issue
+   //     return tf.tensor2d([[0, 0, 0, 0, 0, 0, 0]]);  // Return a tensor with zeroes if text is invalid
+    //  }
+    const sanitizedText = sanitizeText(text);
+    if (!sanitizedText)
+    {
+        console.warn('Invalid or missing observation:', text);
+        return tf.tensor2d([[0, 0, 0, 0, 0, 0, 0]]);
     }
 
     const tokenizer = new natural.WordTokenizer();
@@ -253,11 +267,23 @@ async function handleAction(data) {
 
 // WebSocket message handler
 async function handleMessage(data) {
-    const currentQuery = data.message.toLowerCase();
+    const currentQuery = data.message.toLowerCase().trim();
+
+    // Save query for tracking purposes
     previousQueries[data.id] = currentQuery;
 
-    const predefinedResponse = responses[currentQuery];
-    return predefinedResponse || await findBestAnswer(currentQuery);
+    // Match predefined responses with and without the `?`
+    const predefinedResponse =
+        responses[currentQuery] ||
+        responses[currentQuery.replace(/\?$/, '')]; // Remove trailing `?` for matching
+
+    if (predefinedResponse) {
+        return predefinedResponse;
+    }
+
+    // If no predefined response, fallback to AI or custom logic
+    console.log('No predefined response. Finding best answer...');
+    return await findBestAnswer(currentQuery);
 }
 
 // Route to save the model and weights
@@ -336,15 +362,31 @@ app.post('/api/predictive/model/update', async (req, res) => {
 
 // QHSE Expert Chat API route
 app.post('/api/askQHSEExpert', async (req, res) => {
-    const { query } = req.body;
     try {
-        if (!chatModel) throw new Error('Chat model not loaded');
-        const answer = await handleMessage({ message: query, id: Date.now().toString() });
+        let query = req.body.query;
+
+        // Validate input
+        if (!query || typeof query !== 'string') {
+            throw new Error('Invalid query');
+        }
+
+        // Convert to lowercase and sanitize the query
+        query = query.toLowerCase().trim();
+        const sanitizedQuery = query.replace(/[^\w\s?]/g, ''); // Preserve alphanumeric, spaces, and `?`
+
+        if (!chatModel) {
+            throw new Error('Chat model not loaded');
+        }
+
+        // Handle the query
+        const answer = await handleMessage({ message: sanitizedQuery, id: Date.now().toString() });
         res.json({ answer });
     } catch (error) {
+        console.error('Error in askQHSEExpert:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // File Upload and Prediction Handler
 app.post('/api/predict', upload.single('file'), async (req, res) => {
